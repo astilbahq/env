@@ -64,7 +64,37 @@ jobs:
           set -euo pipefail
           archive="$(node -p "JSON.parse(require('node:fs').readFileSync('.artifacts/release/manifest.json', 'utf8')).archive.name")"
           npm publish ".artifacts/release/$archive" --access public --provenance
+
+  verify-registry:
+    name: Verify registry archive and attestations
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.18.1
+          package-manager-cache: false
+      - name: Verify registry runtime
+        run: |
+          test "$(node --version)" = "v24.18.1"
+          test "$(npm --version)" = "11.16.0"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: astilba-env-archive
+          path: .artifacts/release
+      - name: Verify transferred artifact
+        env:
+          ASTILBA_ENV_ARTIFACT_DIR: .artifacts/release
+        run: node scripts/verify-artifact.mjs
       - name: Verify registry archive and attestations
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
         run: |
           set -euo pipefail
           package="$(node -p "JSON.parse(require('node:fs').readFileSync('.artifacts/release/manifest.json', 'utf8')).package.name")"
@@ -72,37 +102,49 @@ jobs:
           expected="$(node -p "JSON.parse(require('node:fs').readFileSync('.artifacts/release/manifest.json', 'utf8')).archive.sha256")"
 
           mkdir registry-artifact
-          for attempt in $(seq 1 15); do
+          name=""
+          for attempt in $(seq 1 120); do
             if name="$(npm pack "$package@$version" --ignore-scripts --pack-destination registry-artifact 2>/dev/null)"; then
               break
             fi
-            sleep 2
+            name=""
+            if [ "$attempt" -lt 120 ]; then
+              sleep 5
+            fi
           done
-          test -n "${name:-}"
+          if [ -z "$name" ]; then
+            echo "Registry package did not become available within 10 minutes." >&2
+            exit 1
+          fi
           test "$(sha256sum "registry-artifact/$name" | cut -d ' ' -f 1)" = "$expected"
-          test "$(npm view "$package@$version" version)" = "$version"
+          test "$(npm view "$package@$version" version 2>/dev/null)" = "$version"
 
           mkdir registry-consumer
           (
             cd registry-consumer
             npm init --yes >/dev/null
           )
-          npm install --prefix registry-consumer --ignore-scripts --no-audit --no-fund "$package@$version"
+          npm install --prefix registry-consumer --ignore-scripts --no-audit --no-fund "$package@$version" >/dev/null
 
           attestation_verified=false
-          for attempt in $(seq 1 15); do
-            if npm audit signatures --prefix registry-consumer --json --include-attestations > "$RUNNER_TEMP/registry-attestations.json" &&
-              node scripts/verify-registry-attestations.mjs "$RUNNER_TEMP/registry-attestations.json" "$package" "$version"; then
+          for attempt in $(seq 1 120); do
+            if npm audit signatures --prefix registry-consumer --json --include-attestations > "$RUNNER_TEMP/registry-attestations.json" 2>/dev/null &&
+              node scripts/verify-registry-attestations.mjs "$RUNNER_TEMP/registry-attestations.json" "$package" "$version" >/dev/null 2>&1; then
               attestation_verified=true
               break
             fi
-            sleep 2
+            if [ "$attempt" -lt 120 ]; then
+              sleep 5
+            fi
           done
-          test "$attestation_verified" = true
+          if [ "$attestation_verified" != true ]; then
+            echo "Registry attestations did not become verifiable within 10 minutes." >&2
+            exit 1
+          fi
 
   create-release:
     name: Create GitHub release after npm
-    needs: publish
+    needs: verify-registry
     runs-on: ubuntu-latest
     permissions:
       contents: write
