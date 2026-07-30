@@ -174,7 +174,6 @@ describe("GitHub release evidence", () => {
       { ...fixture.release, draft: true },
       { ...fixture.release, prerelease: true },
       { ...fixture.release, tag_name: "v0.1.1" },
-      { ...fixture.release, assets: fixture.release.assets.slice(0, 1) },
       {
         ...fixture.release,
         assets: [
@@ -197,6 +196,23 @@ describe("GitHub release evidence", () => {
         })
       ).rejects.toThrow(/GitHub release/u);
     }
+  });
+
+  it("rejects a partially created release for manual correction", async () => {
+    const fixture = await createFixture();
+    const partialRelease = {
+      ...fixture.release,
+      assets: fixture.release.assets.slice(0, 1),
+    };
+    await expect(
+      buildReleasePlan({
+        artifactDirectory: fixture.artifactDirectory,
+        expectedTag: "v0.1.0",
+        releaseSource: JSON.stringify(partialRelease),
+      })
+    ).rejects.toThrow(
+      "GitHub release state does not match the requested release."
+    );
   });
 
   it("rejects release mutation across the download boundary", async () => {

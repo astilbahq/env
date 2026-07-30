@@ -159,10 +159,10 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: astilba-env-archive
-          path: ${{ runner.temp }}/release-assets
+          path: .artifacts/release
       - name: Verify transferred artifact
         env:
-          ASTILBA_ENV_ARTIFACT_DIR: ${{ runner.temp }}/release-assets
+          ASTILBA_ENV_ARTIFACT_DIR: .artifacts/release
         run: node scripts/verify-artifact.mjs
       - name: Ensure exact GitHub release
         env:
@@ -170,14 +170,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          artifact_dir="$RUNNER_TEMP/release-assets"
+          artifact_dir=".artifacts/release"
+          lookup_headers="$RUNNER_TEMP/release-lookup.headers"
           release_before="$RUNNER_TEMP/release-before.json"
           release_after="$RUNNER_TEMP/release-after.json"
           release_plan="$RUNNER_TEMP/release-plan.json"
           downloaded_dir="$RUNNER_TEMP/downloaded-release-assets"
-          archive="$(node -p "JSON.parse(require('node:fs').readFileSync(process.env.RUNNER_TEMP + '/release-assets/manifest.json', 'utf8')).archive.name")"
+          archive="$(node -p "JSON.parse(require('node:fs').readFileSync('.artifacts/release/manifest.json', 'utf8')).archive.name")"
 
-          if ! gh api "repos/$GH_REPO/releases/tags/$GITHUB_REF_NAME" > "$release_before" 2>/dev/null; then
+          release_exists=false
+          if gh api --include --silent "repos/$GH_REPO/releases/tags/$GITHUB_REF_NAME" > "$lookup_headers" 2>/dev/null; then
+            release_exists=true
+          else
+            lookup_status="$(grep -E '^HTTP/[0-9.]+ [0-9]{3}([[:space:]]|$)' "$lookup_headers" | tail -n 1 || true)"
+            if ! grep -Eq '^HTTP/[0-9.]+ 404([[:space:]]|$)' <<< "$lookup_status"; then
+              echo "GitHub release lookup failed without a confirmed 404; refusing creation." >&2
+              exit 1
+            fi
+          fi
+
+          if [ "$release_exists" = false ]; then
             if ! gh release create "$GITHUB_REF_NAME" \
               --verify-tag \
               --generate-notes \
@@ -188,11 +200,17 @@ jobs:
             fi
           fi
 
-          gh api "repos/$GH_REPO/releases/tags/$GITHUB_REF_NAME" > "$release_before"
-          node scripts/github-release.mjs plan \
+          if ! gh api "repos/$GH_REPO/releases/tags/$GITHUB_REF_NAME" > "$release_before" 2>/dev/null; then
+            echo "No verifiable GitHub release exists; manual correction is required before retry." >&2
+            exit 1
+          fi
+          if ! node scripts/github-release.mjs plan \
             "$release_before" \
             "$GITHUB_REF_NAME" \
-            "$artifact_dir" > "$release_plan"
+            "$artifact_dir" > "$release_plan" 2>/dev/null; then
+            echo "GitHub release state or assets are incomplete or mismatched; manual correction is required before retry." >&2
+            exit 1
+          fi
 
           mkdir "$downloaded_dir"
           for asset_index in 0 1; do
