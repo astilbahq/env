@@ -59,11 +59,7 @@ jobs:
         env:
           ASTILBA_ENV_ARTIFACT_DIR: .artifacts/release
         run: node scripts/verify-artifact.mjs
-      - name: Bootstrap v0.1.0 publish with protected token and provenance
-        # Bootstrap only: remove this mapping in the post-release main commit
-        # after trusted publishing is configured, then delete/revoke NPM_TOKEN.
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish verified archive with provenance
         run: |
           set -euo pipefail
           archive="$(node -p "JSON.parse(require('node:fs').readFileSync('.artifacts/release/manifest.json', 'utf8')).archive.name")"
