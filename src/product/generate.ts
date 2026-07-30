@@ -724,7 +724,9 @@ const renderBrowserProjectionModule = (input: {
     '  const missing = (): never => failure("BOOTSTRAP_VALUE_MISSING");',
     "  const values = Object.create(null) as Record<string, unknown>;",
     "",
-    ...decoder.split("\n").map((line) => `  ${line}`),
+    ...decoder
+      .split("\n")
+      .map((line) => (line.length === 0 ? line : `  ${line}`)),
     "",
     "  return Object.freeze(values) as Readonly<Configuration>;",
     "};",

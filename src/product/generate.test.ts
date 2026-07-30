@@ -547,6 +547,28 @@ describe("deterministic product generation", () => {
     );
   });
 
+  it("leaves browser decoder separator lines empty for mixed optional and required entries", async () => {
+    const root = await temporaryRoot();
+    await generateEnvironment(typedDeclaration(), { projectRoot: root });
+    const browserModule = await readFile(
+      resolve(root, ".astilba/env/browser/browser.deployment.ts"),
+      "utf-8"
+    );
+    const decoder = browserModule.slice(
+      browserModule.indexOf("  const selected ="),
+      browserModule.indexOf("  return Object.freeze(values)")
+    );
+
+    expect(decoder).toContain('  if (Object.hasOwn(input, "analyticsId")) {');
+    expect(decoder).toContain(
+      '  }\n\n  if (!Object.hasOwn(input, "apiOrigin")) {'
+    );
+    expect(decoder).toContain('  if (!Object.hasOwn(input, "appName")) {');
+    expect(
+      browserModule.split("\n").filter((line) => /\s+$/u.test(line))
+    ).toStrictEqual([]);
+  });
+
   it("typechecks generated public string-list and safe-integer browser projections in TypeScript 6", async () => {
     const root = await temporaryRoot();
     await generateEnvironment(typedDeclaration(), { projectRoot: root });
