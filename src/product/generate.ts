@@ -410,10 +410,15 @@ class BrowserShapeCopiers {
       }
       case "safe-integer": {
         return [
-          `const ${name} = (value: unknown): unknown | undefined =>`,
-          `  Number.isSafeInteger(value) && value >= ${renderOwnedValue(shape.minimum)} && value <= ${renderOwnedValue(shape.maximum)}`,
-          "    ? value",
-          "    : undefined;",
+          `const ${name} = (value: unknown): unknown | undefined => {`,
+          '  if (typeof value !== "number") {',
+          "    return undefined;",
+          "  }",
+          `  if (!Number.isSafeInteger(value) || value < ${renderOwnedValue(shape.minimum)} || value > ${renderOwnedValue(shape.maximum)}) {`,
+          "    return undefined;",
+          "  }",
+          "  return value;",
+          "};",
         ].join("\n");
       }
       case "string": {
@@ -548,8 +553,11 @@ const renderBrowserEntry = (
     }
     case "safe-integer": {
       lines.push(
+        `if (typeof ${raw} !== "number") {`,
+        "  return invalid();",
+        "}",
         `if (!Number.isSafeInteger(${raw}) || ${raw} < ${renderOwnedValue(entry.codec.minimum)} || ${raw} > ${renderOwnedValue(entry.codec.maximum)}) {`,
-        "  invalid();",
+        "  return invalid();",
         "}",
         `const ${value} = ${raw};`
       );
@@ -566,8 +574,16 @@ const renderBrowserEntry = (
     }
     case "string-list": {
       lines.push(
-        `if (!Array.isArray(${raw}) || ${raw}.length < ${renderOwnedValue(entry.codec.minimumItems)} || ${raw}.length > ${renderOwnedValue(entry.codec.maximumItems)} || !${raw}.every((item) => validText(item, ${renderOwnedValue(entry.codec.minimumItemCodePoints)}, ${renderOwnedValue(entry.codec.maximumItemCodePoints)}))) {`,
-        "  invalid();",
+        `if (!Array.isArray(${raw})) {`,
+        "  return invalid();",
+        "}",
+        `if (${raw}.length < ${renderOwnedValue(entry.codec.minimumItems)} || ${raw}.length > ${renderOwnedValue(entry.codec.maximumItems)}) {`,
+        "  return invalid();",
+        "}",
+        `for (let index = 0; index < ${raw}.length; index += 1) {`,
+        `  if (!validText(${raw}[index], ${renderOwnedValue(entry.codec.minimumItemCodePoints)}, ${renderOwnedValue(entry.codec.maximumItemCodePoints)})) {`,
+        "    return invalid();",
+        "  }",
         "}",
         `const ${value} = Object.freeze([...${raw}]);`
       );

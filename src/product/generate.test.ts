@@ -1,3 +1,4 @@
+import { execFile as execFileCallback } from "node:child_process";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -35,6 +36,26 @@ const MAXIMUM_COMPILATION_BYTES = 8_388_608;
 const MAXIMUM_GENERATED_FILE_BYTES = 8_388_608;
 const MAXIMUM_GENERATED_FILES = 2048;
 const MAXIMUM_GENERATED_TREE_BYTES = 67_108_864;
+
+const execFile = async (
+  file: string,
+  arguments_: readonly string[],
+  cwd: string
+): Promise<void> => {
+  await new Promise<void>((fulfill, reject) => {
+    execFileCallback(file, arguments_, { cwd }, (error) => {
+      if (error === null) {
+        fulfill();
+        return;
+      }
+      reject(
+        error instanceof Error
+          ? error
+          : new Error("The test child-process command failed.")
+      );
+    });
+  });
+};
 
 type BrowserProjection = Readonly<Record<string, unknown>> & {
   readonly decode: (
@@ -167,6 +188,43 @@ const temporaryRoot = async (): Promise<string> => {
   const root = await mkdtemp(resolve(tmpdir(), "astilba-env-product-"));
   temporaryRoots.push(root);
   return root;
+};
+
+const typecheckGeneratedBrowserModule = async (
+  root: string,
+  modulePath: string
+): Promise<void> => {
+  const configPath = resolve(root, "tsconfig.generated-browser.json");
+  await writeFile(
+    configPath,
+    `${JSON.stringify({
+      compilerOptions: {
+        allowImportingTsExtensions: true,
+        baseUrl: process.cwd(),
+        ignoreDeprecations: "6.0",
+        lib: ["ES2024", "DOM", "DOM.Iterable"],
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        noEmit: true,
+        paths: {
+          "@astilba/env/browser": ["src/browser/index.ts"],
+        },
+        strict: true,
+        target: "ES2024",
+      },
+      files: [modulePath],
+    })}\n`,
+    "utf-8"
+  );
+  await execFile(
+    process.execPath,
+    [
+      resolve(process.cwd(), "node_modules/typescript/bin/tsc"),
+      "--project",
+      configPath,
+    ],
+    root
+  );
 };
 
 const importBrowserProjection = async (
@@ -487,6 +545,62 @@ describe("deterministic product generation", () => {
     expect(failures).toStrictEqual(
       rejectedOrigins.map(() => "BOOTSTRAP_VALUE_INVALID")
     );
+  });
+
+  it("typechecks generated public string-list and safe-integer browser projections in TypeScript 6", async () => {
+    const root = await temporaryRoot();
+    await generateEnvironment(typedDeclaration(), { projectRoot: root });
+    const browserModule = resolve(
+      root,
+      ".astilba/env/browser/browser.deployment.ts"
+    );
+
+    await expect(
+      typecheckGeneratedBrowserModule(root, browserModule)
+    ).resolves.toBeUndefined();
+
+    const imported = await importBrowserProjection(
+      await readFile(browserModule, "utf-8")
+    );
+    const failure = (code: string): never => {
+      throw new Error(code);
+    };
+    const values = Object.freeze({
+      apiOrigin: "https://api.example",
+      appName: "Example",
+      clientConfiguration: Object.freeze({
+        features: Object.freeze(["alpha"]),
+        region: "eu-west",
+      }),
+      debug: false,
+      features: Object.freeze(["alpha", "beta"]),
+      port: 4100,
+    });
+    expect(imported.projection.decode(values, failure)).toMatchObject({
+      features: ["alpha", "beta"],
+      port: 4100,
+    });
+    expect(() =>
+      imported.projection.decode(
+        Object.freeze({ ...values, features: Object.freeze(["alpha", 0]) }),
+        failure
+      )
+    ).toThrow("BOOTSTRAP_VALUE_INVALID");
+    const sparse = ["alpha"];
+    sparse.length = 3;
+    sparse[2] = "beta";
+    expect(() =>
+      imported.projection.decode(
+        Object.freeze({ ...values, features: Object.freeze(sparse) }),
+        failure
+      )
+    ).toThrow("BOOTSTRAP_VALUE_INVALID");
+    expect(() =>
+      imported.projection.decode(
+        Object.freeze({ ...values, port: 0.5 }),
+        failure
+      )
+    ).toThrow("BOOTSTRAP_VALUE_INVALID");
   });
 
   it("renders an inert owned browser build configuration from an explicit source", async () => {
