@@ -107,7 +107,7 @@ const renderScalarValue = (value: unknown): string => {
     return sourceString(value);
   }
   if (typeof value === "boolean") {
-    return JSON.stringify(value);
+    return value ? "true" : "false";
   }
   if (
     typeof value === "number" &&

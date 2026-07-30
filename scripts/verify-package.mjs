@@ -57,6 +57,7 @@ const expectedExports = {
   "./browser": {
     types: "./dist/browser/index.d.ts",
     browser: "./dist/browser/index.js",
+    default: "./dist/browser/index.js",
   },
   "./runtime": {
     types: "./dist/runtime/index.d.ts",
@@ -234,7 +235,11 @@ for (const path of outputFiles) {
 
 const nodeBrowserResolution = spawnSync(
   process.execPath,
-  ["--input-type=module", "--eval", 'await import("@astilba/env/browser");'],
+  [
+    "--input-type=module",
+    "--eval",
+    'const browser = await import("@astilba/env/browser"); if (typeof browser.loadBrowserBootstrap !== "function") throw new Error("Browser export is incomplete.");',
+  ],
   {
     cwd: root,
     encoding: "utf-8",
@@ -246,11 +251,9 @@ const nodeBrowserResolution = spawnSync(
 if (
   nodeBrowserResolution.error !== undefined ||
   nodeBrowserResolution.signal !== null ||
-  nodeBrowserResolution.status === 0 ||
-  nodeBrowserResolution.stdout !== "" ||
-  !nodeBrowserResolution.stderr.includes("ERR_PACKAGE_PATH_NOT_EXPORTED")
+  nodeBrowserResolution.status !== 0
 ) {
-  fail("Node unexpectedly resolved the frozen browser-only export.");
+  fail("Node could not resolve the public browser export.");
 }
 
 const importPattern =
@@ -276,6 +279,12 @@ const inspectBrowserModule = async (path) => {
     const specifier = match.groups?.specifier;
     if (specifier === undefined) {
       continue;
+    }
+    if (specifier.startsWith("node:")) {
+      fail(`Browser graph contains a Node builtin: ${specifier}`);
+    }
+    if (specifier === "@astilba/env" || specifier === "@astilba/env/runtime") {
+      fail(`Browser graph contains a private runtime import: ${specifier}`);
     }
     if (!specifier.startsWith(".")) {
       fail(`Browser graph contains an external import: ${specifier}`);

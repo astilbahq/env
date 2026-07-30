@@ -14,7 +14,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, relative, resolve, sep, win32 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { parseManifest, verifyManifestBinding } from "./artifact-manifest.mjs";
@@ -39,25 +39,99 @@ export const runResult = (command, arguments_, cwd, env = process.env) =>
   });
 
 /**
- * @param {string} command
  * @param {readonly string[]} arguments_
- * @param {{ signal: NodeJS.Signals | null, status: number | null, stderr: string | Buffer, stdout: string | Buffer }} result
+ * @param {{ execPath?: string, platform?: NodeJS.Platform }} [options]
  */
-export const formatRunFailure = (command, arguments_, result) => {
-  const exit =
-    result.signal === null
+const resolveNpmInvocation = (
+  arguments_,
+  { execPath = process.execPath, platform = process.platform } = {}
+) => {
+  if (platform !== "win32") {
+    return { arguments_, command: "npm" };
+  }
+  return {
+    arguments_: [
+      win32.resolve(
+        win32.dirname(execPath),
+        "node_modules",
+        "npm",
+        "bin",
+        "npm-cli.js"
+      ),
+      ...arguments_,
+    ],
+    command: execPath,
+  };
+};
+
+/**
+ * @param {PackageManager} manager
+ * @param {readonly string[]} arguments_
+ * @param {{ execPath?: string, platform?: NodeJS.Platform }} [options]
+ */
+export const resolvePackageManagerInvocation = (manager, arguments_, options) =>
+  manager === "npm"
+    ? resolveNpmInvocation(arguments_, options)
+    : { arguments_, command: manager };
+
+/**
+ * @param {{ error?: NodeJS.ErrnoException, signal: NodeJS.Signals | null, status: number | null }} result
+ */
+const runExit = (result) => {
+  if (result.error === undefined) {
+    return result.signal === null
       ? `status ${result.status ?? "unknown"}`
       : `signal ${result.signal}`;
-  return `${command} ${arguments_.join(" ")} failed (${exit}).\nstdout:\n${result.stdout.toString()}\nstderr:\n${result.stderr.toString()}`;
+  }
+  return `error ${result.error.code ?? "unknown"}: ${result.error.message}`;
+};
+
+/**
+ * @param {string} command
+ * @param {readonly string[]} arguments_
+ * @param {{ error?: NodeJS.ErrnoException, signal: NodeJS.Signals | null, status: number | null, stderr?: string | Buffer, stdout?: string | Buffer }} result
+ */
+export const formatRunFailure = (command, arguments_, result) => {
+  /** @param {string | Buffer | undefined} value */
+  const output = (value) =>
+    value === undefined ? "<unavailable>" : value.toString();
+  return `${command} ${arguments_.join(" ")} failed (${runExit(result)}).\nstdout:\n${output(result.stdout)}\nstderr:\n${output(result.stderr)}`;
+};
+
+/**
+ * @param {string} command
+ * @param {readonly string[]} arguments_
+ * @param {{ error?: NodeJS.ErrnoException, signal: NodeJS.Signals | null, status: number | null, stderr?: string | Buffer, stdout?: string | Buffer }} result
+ */
+export const formatRunSummary = (command, arguments_, result) => {
+  /** @param {string | Buffer | undefined} value */
+  const outputSize = (value) =>
+    value === undefined ? "<unavailable>" : `${Buffer.byteLength(value)} bytes`;
+  return `${command} ${arguments_.join(" ")} failed (${runExit(result)}; stdout ${outputSize(result.stdout)}; stderr ${outputSize(result.stderr)}).`;
 };
 
 /** @param {string} command @param {readonly string[]} arguments_ @param {string} cwd @param {NodeJS.ProcessEnv} [env] */
 export const run = (command, arguments_, cwd, env = process.env) => {
   const result = runResult(command, arguments_, cwd, env);
-  if (result.status !== 0 || result.signal !== null) {
+  if (
+    result.error !== undefined ||
+    result.status !== 0 ||
+    result.signal !== null
+  ) {
     fail(formatRunFailure(command, arguments_, result));
   }
   return result.stdout;
+};
+
+/** @param {PackageManager} manager @param {readonly string[]} arguments_ @param {string} cwd @param {NodeJS.ProcessEnv} [env] */
+export const runPackageManager = (
+  manager,
+  arguments_,
+  cwd,
+  env = process.env
+) => {
+  const invocation = resolvePackageManagerInvocation(manager, arguments_);
+  return run(invocation.command, invocation.arguments_, cwd, env);
 };
 
 const artifactDirectory = () =>
@@ -133,7 +207,7 @@ export const writeConsumerManifest = async (directory, archive) => {
 /** @param {PackageManager} manager @param {string} directory @param {readonly string[]} [additional] */
 export const installArchive = (manager, directory, additional = []) => {
   const arguments_ = ["install", "--ignore-scripts", ...additional];
-  run(manager, arguments_, directory);
+  runPackageManager(manager, arguments_, directory);
 };
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
