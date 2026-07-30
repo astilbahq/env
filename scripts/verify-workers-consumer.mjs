@@ -597,12 +597,16 @@ const runWorkersConsumer = async (arguments_) => {
     if (
       artifactSource.includes("nodejs_compat") ||
       artifactSource.includes("node:") ||
-      artifactSource.includes(PUBLIC_ORIGIN_SOURCE_CANARY) ||
       artifactSource.includes("UNRELATED_KV")
     ) {
       fail(
-        "Worker artifact contains a Node marker, an embedded source canary, or an undeclared binding read."
+        "Worker artifact contains a Node marker or an undeclared binding read."
       );
+    }
+    if (
+      artifactBytes.includes(Buffer.from(PUBLIC_ORIGIN_SOURCE_CANARY, "utf-8"))
+    ) {
+      fail("Worker artifact contains the embedded source canary.");
     }
     const configurationSource = await readFile(
       resolve(consumer, "wrangler.jsonc"),
