@@ -1,0 +1,13 @@
+packages: []
+
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - "vite@8.1.5"
+  - "workerd@1.20260724.1"
+
+overrides:
+  vite: "8.1.5"
+  vitest: "4.1.10"

@@ -1,0 +1,74 @@
+# Astilba Env
+
+Astilba Env is a local-first configuration contract compiler for TypeScript. You declare which application artifacts need configuration, when each value is resolved, and where it may be exposed; Env generates typed, physically separated interfaces and value-free compatibility evidence.
+
+Env does not replace a secret manager or `.env` files. It does not receive, store, or transmit configuration values; compilation, checking, and planning run in your project.
+
+## Install
+
+```sh
+pnpm add @astilba/env
+```
+
+The package requires Node.js `22.14.0` or later within its published major-version ranges. Vite support is optional and supports Vite versions from `8.1.5` up to, but not including, `9.0.0`.
+
+## Start with one declaration
+
+Create `astilba.env.ts` in an ESM package:
+
+```ts
+import { defineEnvironment, env } from "@astilba/env";
+
+export default defineEnvironment({
+  id: "com.example.application",
+  entries: {
+    apiOrigin: env.public.deployment.origin(),
+    databaseUrl: env.private.deployment.secret(),
+  },
+  consumers: {
+    browser: env.browser(["apiOrigin"]),
+    server: env.server(["databaseUrl"]),
+  },
+  targets: {
+    browserDeployment: env.process("browser", {
+      apiOrigin: "PUBLIC_API_ORIGIN",
+    }),
+    serverDeployment: env.process("server", {
+      databaseUrl: "DATABASE_URL",
+    }),
+  },
+});
+```
+
+Generate the project-owned interfaces, then make drift checking a required CI step:
+
+```sh
+astilba-env generate
+astilba-env generate --check
+```
+
+Generated server modules expose typed `check` and `load` operations. Generated browser modules expose only the selected public projection; private names, codecs, bindings, values, and full-contract metadata do not enter the browser graph.
+
+## Package boundaries
+
+- `@astilba/env` provides declaration builders;
+- `@astilba/env/runtime` supports generated Node target modules;
+- `@astilba/env/browser` validates public browser bootstrap data;
+- `@astilba/env/vite` rejects private Env modules from browser graphs;
+- `astilba-env` is the Node command-line interface.
+
+Applications own their configuration endpoint and response headers. Responses that vary by request must use `Cache-Control: private, no-store`; the browser runtime also fetches with `cache: "no-store"`.
+
+There is no hosted control plane and no framework-specific semantic layer. Next.js integration is application-owned wiring around generated modules and the browser protocol; there is no `@astilba/env/next` export.
+
+## Support and migration
+
+Read the [public documentation](https://astilba.com/docs/env/) for the supported release boundary and the [migration guide](https://astilba.com/docs/env/migrate-from-next-dynamic-env/) before replacing `next-dynamic-env`. The guide names intentional compatibility changes, including validation and browser-delivery differences.
+
+## Security
+
+Please report vulnerabilities through the [security policy](https://github.com/astilbahq/env/security/policy). Do not include secrets or configuration values in a public issue.
+
+## Licence
+
+MIT

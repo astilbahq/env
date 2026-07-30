@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.astilba/
+*.tgz
+*.tsbuildinfo
+.DS_Store
+.vite/
+.wrangler/
+.pnpm-store/
+.artifacts/
+.env
+.env.*
+temp/
+archives/

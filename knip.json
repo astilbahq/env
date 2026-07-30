@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/index.ts",
+    "src/browser/index.ts",
+    "src/cli/astilba-env.ts",
+    "src/cli/compile.ts",
+    "src/runtime/index.ts",
+    "src/vite/index.ts",
+    "src/**/*.test.ts",
+    "test/**/*.ts"
+  ],
+  "project": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.mjs"],
+  "ignoreDependencies": [
+    "@arethetypeswrong/cli",
+    "eslint-plugin-github",
+    "eslint-plugin-sonarjs",
+    "publint",
+    "workerd"
+  ],
+  "ignoreBinaries": ["astilba-env"]
+}
