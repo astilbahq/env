@@ -23,6 +23,7 @@ export default defineConfig({
       "cli/compile": "src/cli/compile.ts",
       index: "src/index.ts",
       "runtime/index": "src/runtime/index.ts",
+      "runtime/workerd": "src/runtime/workerd.ts",
       "vite/index": "src/vite/index.ts",
     },
     format: "esm",

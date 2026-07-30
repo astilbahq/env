@@ -10,7 +10,7 @@ import { opaqueRefusalDiagnostics, resolveTarget } from "./resolution.ts";
 import { aggregateFailure, cloneDiagnostics, diagnostic } from "./results.ts";
 import { validateProcessTarget } from "./validation.ts";
 
-export type ProcessSource = Readonly<Record<string, unknown>>;
+export type ProcessSource = object;
 
 export type ProcessTargetDefinition = Readonly<{
   bindings: readonly Readonly<{

@@ -6,6 +6,7 @@
     "src/cli/astilba-env.ts",
     "src/cli/compile.ts",
     "src/runtime/index.ts",
+    "src/runtime/workerd.ts",
     "src/vite/index.ts",
     "src/**/*.test.ts",
     "test/**/*.ts"

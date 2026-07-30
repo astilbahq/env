@@ -109,7 +109,33 @@ const target: ProcessTargetDefinition = {
   projection: baseProjection,
 };
 
+interface WranglerGeneratedEnvFixture {
+  readonly ENABLED: string;
+  readonly SECRET: string;
+  readonly UNRELATED_KV: object;
+}
+
 describe("generated process runtime", () => {
+  it("accepts a generated binding interface without an index signature", () => {
+    const source: WranglerGeneratedEnvFixture = {
+      ENABLED: "true",
+      SECRET: "exact value",
+      UNRELATED_KV: Object.freeze({}),
+    };
+
+    expect(
+      loadProcessTarget<{
+        readonly enabled: boolean;
+        readonly secret: string;
+      }>(target, source)
+    ).toStrictEqual(
+      nullRecord({
+        enabled: true,
+        secret: "exact value",
+      })
+    );
+  });
+
   it("returns an exact owned result without observing unrelated input", () => {
     let unrelatedReads = 0;
     const result = checkProcessTarget<{

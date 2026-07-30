@@ -1,6 +1,6 @@
 {
   "name": "@astilba/env",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first configuration contracts with deterministic generation, public and server projections, and build-once browser delivery.",
   "keywords": [
     "cli",
@@ -33,19 +33,23 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "workerd": null,
       "node": "./dist/index.js"
     },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
+      "workerd": null,
       "browser": "./dist/browser/index.js",
       "default": "./dist/browser/index.js"
     },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
+      "workerd": "./dist/runtime/workerd.js",
       "node": "./dist/runtime/index.js"
     },
     "./vite": {
       "types": "./dist/vite/index.d.ts",
+      "workerd": null,
       "node": "./dist/vite/index.js"
     }
   },
