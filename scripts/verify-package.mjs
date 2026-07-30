@@ -52,19 +52,23 @@ const packageJson = JSON.parse(
 const expectedExports = {
   ".": {
     types: "./dist/index.d.ts",
+    workerd: null,
     node: "./dist/index.js",
   },
   "./browser": {
     types: "./dist/browser/index.d.ts",
+    workerd: null,
     browser: "./dist/browser/index.js",
     default: "./dist/browser/index.js",
   },
   "./runtime": {
     types: "./dist/runtime/index.d.ts",
+    workerd: "./dist/runtime/workerd.js",
     node: "./dist/runtime/index.js",
   },
   "./vite": {
     types: "./dist/vite/index.d.ts",
+    workerd: null,
     node: "./dist/vite/index.js",
   },
 };
@@ -143,6 +147,8 @@ const expectedDistFiles = sortedStrings([
   "runtime/standard-schema.d.ts",
   "runtime/standard-schema.js",
   "runtime/validation.js",
+  "runtime/workerd.d.ts",
+  "runtime/workerd.js",
   "vite/boundary.js",
   "vite/index.d.ts",
   "vite/index.js",
@@ -151,7 +157,7 @@ const expectedDistFiles = sortedStrings([
 if (
   !isRecord(packageJson) ||
   packageJson.name !== "@astilba/env" ||
-  packageJson.version !== "0.1.0" ||
+  packageJson.version !== "0.2.0" ||
   Object.hasOwn(packageJson, "private") ||
   packageJson.license !== "MIT" ||
   packageJson.homepage !== "https://github.com/astilbahq/env#readme" ||

@@ -63,7 +63,7 @@ const createFixture = async () => {
   await mkdir(artifactDirectory);
   await mkdir(downloadedDirectory);
 
-  const archiveName = "astilba-env-0.1.0.tgz";
+  const archiveName = "astilba-env-0.2.0.tgz";
   const archive = Buffer.from("verified archive");
   const manifest = {
     archive: {
@@ -80,7 +80,7 @@ const createFixture = async () => {
       },
     ],
     format: "astilba.env.release-artifact/v1",
-    package: { name: "@astilba/env", version: "0.1.0" },
+    package: { name: "@astilba/env", version: "0.2.0" },
     source: { commit: "a".repeat(40), tree: "b".repeat(40) },
   };
   const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
@@ -107,7 +107,7 @@ const createFixture = async () => {
     draft: false,
     id: 100,
     prerelease: false,
-    tag_name: "v0.1.0",
+    tag_name: "v0.2.0",
   };
   return {
     archiveName,
@@ -131,7 +131,7 @@ describe("GitHub release evidence", () => {
     const releaseSource = JSON.stringify(fixture.release);
     const plan = await buildReleasePlan({
       artifactDirectory: fixture.artifactDirectory,
-      expectedTag: "v0.1.0",
+      expectedTag: "v0.2.0",
       releaseSource,
     });
     expect(plan).toStrictEqual({
@@ -150,7 +150,7 @@ describe("GitHub release evidence", () => {
         },
       ],
       releaseId: 100,
-      tag: "v0.1.0",
+      tag: "v0.2.0",
     });
     await expect(
       verifyReleaseEvidence({
@@ -158,13 +158,13 @@ describe("GitHub release evidence", () => {
         artifactDirectory: fixture.artifactDirectory,
         beforeSource: releaseSource,
         downloadedDirectory: fixture.downloadedDirectory,
-        expectedTag: "v0.1.0",
+        expectedTag: "v0.2.0",
       })
     ).resolves.toStrictEqual({
       assets: [fixture.archiveName, "manifest.json"],
       passed: true,
       releaseId: 100,
-      tag: "v0.1.0",
+      tag: "v0.2.0",
     });
   });
 
@@ -173,7 +173,7 @@ describe("GitHub release evidence", () => {
     const invalidReleases = [
       { ...fixture.release, draft: true },
       { ...fixture.release, prerelease: true },
-      { ...fixture.release, tag_name: "v0.1.1" },
+      { ...fixture.release, tag_name: "v0.2.1" },
       {
         ...fixture.release,
         assets: [
@@ -191,7 +191,7 @@ describe("GitHub release evidence", () => {
       await expect(
         buildReleasePlan({
           artifactDirectory: fixture.artifactDirectory,
-          expectedTag: "v0.1.0",
+          expectedTag: "v0.2.0",
           releaseSource: JSON.stringify(release),
         })
       ).rejects.toThrow(/GitHub release/u);
@@ -207,7 +207,7 @@ describe("GitHub release evidence", () => {
     await expect(
       buildReleasePlan({
         artifactDirectory: fixture.artifactDirectory,
-        expectedTag: "v0.1.0",
+        expectedTag: "v0.2.0",
         releaseSource: JSON.stringify(partialRelease),
       })
     ).rejects.toThrow(
@@ -229,7 +229,7 @@ describe("GitHub release evidence", () => {
         artifactDirectory: fixture.artifactDirectory,
         beforeSource: JSON.stringify(fixture.release),
         downloadedDirectory: fixture.downloadedDirectory,
-        expectedTag: "v0.1.0",
+        expectedTag: "v0.2.0",
       })
     ).rejects.toThrow("GitHub release changed while its assets were verified.");
   });
@@ -250,7 +250,7 @@ describe("GitHub release evidence", () => {
         artifactDirectory: mismatchedFixture.artifactDirectory,
         beforeSource: mismatchedReleaseSource,
         downloadedDirectory: mismatchedFixture.downloadedDirectory,
-        expectedTag: "v0.1.0",
+        expectedTag: "v0.2.0",
       })
     ).rejects.toThrow("Downloaded GitHub release asset bytes do not match.");
 
@@ -263,7 +263,7 @@ describe("GitHub release evidence", () => {
         artifactDirectory: missingFixture.artifactDirectory,
         beforeSource: missingReleaseSource,
         downloadedDirectory: missingFixture.downloadedDirectory,
-        expectedTag: "v0.1.0",
+        expectedTag: "v0.2.0",
       })
     ).rejects.toThrow("Downloaded GitHub release asset set is not exact.");
 
@@ -279,7 +279,7 @@ describe("GitHub release evidence", () => {
         artifactDirectory: extraFixture.artifactDirectory,
         beforeSource: extraReleaseSource,
         downloadedDirectory: extraFixture.downloadedDirectory,
-        expectedTag: "v0.1.0",
+        expectedTag: "v0.2.0",
       })
     ).rejects.toThrow("Downloaded GitHub release asset set is not exact.");
   });
