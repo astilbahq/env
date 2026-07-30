@@ -527,6 +527,78 @@ describe("deterministic product generation", () => {
     expect(Object.isFrozen(configuration)).toBe(true);
   });
 
+  it("keeps boolean, numeric, and string-list build values as importable literals", async () => {
+    const root = await temporaryRoot();
+    const environment = defineEnvironment({
+      consumers: {
+        browser: env.browser(["count", "enabled", "labels"]),
+        server: env.server(),
+      },
+      entries: {
+        count: env.public.build.safeInteger({ maximum: 99, minimum: 0 }),
+        enabled: env.public.build.boolean(),
+        labels: env.public.build.stringList({
+          minimumItemCodePoints: 2,
+          maximumItemCodePoints: 16,
+          maximumItems: 4,
+        }),
+      },
+      id: "com.astilba.literal-build-values",
+      targets: {
+        browser: env.process("browser", {
+          count: "COUNT",
+          enabled: "ENABLED",
+          labels: "LABELS",
+        }),
+        server: env.process("server", {
+          count: "COUNT",
+          enabled: "ENABLED",
+          labels: "LABELS",
+        }),
+      },
+    });
+
+    await generateEnvironment(environment, {
+      projectRoot: root,
+      source: { COUNT: "7", ENABLED: "false", LABELS: "al,be" },
+    });
+    const moduleSource = await readFile(
+      resolve(root, ".astilba/env/browser/browser.build.ts"),
+      "utf-8"
+    );
+    expect(moduleSource).toContain("value: 7");
+    expect(moduleSource).toContain("value: false");
+    expect(moduleSource).toContain('Object.freeze(["al","be"])');
+    expect(moduleSource).not.toContain('value: "false"');
+
+    const transformed = await transform(moduleSource, {
+      format: "esm",
+      loader: "ts",
+      target: "es2022",
+    });
+    const imported: unknown = await import(
+      `data:text/javascript;base64,${Buffer.from(transformed.code).toString("base64")}`
+    );
+    if (!isRecord(imported) || !isRecord(imported.configuration)) {
+      throw new TypeError(
+        "Generated browser configuration has an invalid shape."
+      );
+    }
+    expect({ ...imported.configuration }).toStrictEqual({
+      count: 7,
+      enabled: false,
+      labels: ["al", "be"],
+    });
+    const serverModule = await readFile(
+      resolve(root, ".astilba/env/server.server.ts"),
+      "utf-8"
+    );
+    const serverDefinition = await importServerDefinition(serverModule);
+    const renderedDefinition = JSON.stringify(serverDefinition);
+    expect(renderedDefinition).toContain('"minimumItemCodePoints":2');
+    expect(renderedDefinition).toContain('"maximumItemCodePoints":16');
+  });
+
   it("renders application-controlled metadata only as inert owned literals", async () => {
     const root = await temporaryRoot();
     const dangerous =

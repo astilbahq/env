@@ -11,8 +11,8 @@ import {
   readArtifact,
   removeConsumer,
   run,
+  runPackageManager,
   writeConsumerManifest,
-  runResult,
 } from "./matrix-artifact.mjs";
 
 const { archive, sha256 } = await readArtifact();
@@ -38,7 +38,10 @@ for (const manager of requested) {
     expectedVersion =
       process.versions.node === "22.14.0" ? "10.9.2" : "11.16.0";
   }
-  if (run(manager, ["--version"], process.cwd()).trim() !== expectedVersion) {
+  if (
+    runPackageManager(manager, ["--version"], process.cwd()).trim() !==
+    expectedVersion
+  ) {
     throw new Error(
       `${manager} archive-consumer runtime differs from its matrix pin.`
     );
@@ -56,26 +59,15 @@ for (const manager of requested) {
       'import { defineEnvironment, env } from "@astilba/env";\nconst definition = defineEnvironment({ id: "com.example.consumer", entries: { value: env.public.build.string() }, consumers: { web: env.browser(["value"]) }, targets: { build: env.process("web", { value: "VALUE" }) } });\nprocess.stdout.write(definition.id + "\\n");\n'
     );
     run(process.execPath, ["smoke.mjs"], consumer);
-    const browserResolution = runResult(
+    run(
       process.execPath,
       [
         "--input-type=module",
         "--eval",
-        'await import("@astilba/env/browser");',
+        'const browser = await import("@astilba/env/browser"); if (typeof browser.loadBrowserBootstrap !== "function") throw new Error("Browser export is incomplete.");',
       ],
       consumer
     );
-    if (
-      browserResolution.error !== undefined ||
-      browserResolution.signal !== null ||
-      browserResolution.status === 0 ||
-      browserResolution.stdout !== "" ||
-      !browserResolution.stderr.includes("ERR_PACKAGE_PATH_NOT_EXPORTED")
-    ) {
-      throw new Error(
-        "Node unexpectedly resolved the browser-only package export."
-      );
-    }
   } finally {
     await removeConsumer(consumer);
   }

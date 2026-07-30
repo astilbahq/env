@@ -37,7 +37,8 @@
     },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
-      "browser": "./dist/browser/index.js"
+      "browser": "./dist/browser/index.js",
+      "default": "./dist/browser/index.js"
     },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",

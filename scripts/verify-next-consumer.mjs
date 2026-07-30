@@ -16,6 +16,7 @@ import {
   assertCleanArchiveInstall,
   createConsumer,
   fail,
+  formatRunSummary,
   installArchive,
   readArtifact,
   removeConsumer,
@@ -226,7 +227,7 @@ const build = async (directory) => {
     result.signal !== null ||
     result.status !== 0
   ) {
-    fail("Next build did not complete successfully within the matrix timeout.");
+    fail(formatRunSummary("Next", ["build"], result));
   }
   await access(resolve(directory, ".next/BUILD_ID"));
 };

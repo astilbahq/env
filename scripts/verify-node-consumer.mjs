@@ -10,8 +10,8 @@ import {
   createConsumer,
   readArtifact,
   removeConsumer,
+  runPackageManager,
   run,
-  runResult,
 } from "./matrix-artifact.mjs";
 
 const matrix = Object.freeze({
@@ -41,7 +41,9 @@ const expectedNpm = Object.getOwnPropertyDescriptor(
 if (typeof expectedNpm !== "string") {
   throw new TypeError("Node archive-consumer matrix pin is invalid.");
 }
-if (run("npm", ["--version"], process.cwd()).trim() !== expectedNpm) {
+if (
+  runPackageManager("npm", ["--version"], process.cwd()).trim() !== expectedNpm
+) {
   throw new Error("npm archive-consumer runtime differs from its matrix pin.");
 }
 
@@ -68,7 +70,11 @@ try {
       2
     )}\n`
   );
-  run("npm", ["install", "--ignore-scripts", "--package-lock=false"], consumer);
+  runPackageManager(
+    "npm",
+    ["install", "--ignore-scripts", "--package-lock=false"],
+    consumer
+  );
   await assertCleanArchiveInstall(consumer, {
     allowManagerMetadata: false,
     manager: "npm",
@@ -113,17 +119,15 @@ try {
     'import { defineEnvironment } from "@astilba/env";\nif (typeof defineEnvironment !== "function") throw new Error("Runtime import failed.");\n'
   );
   run(process.execPath, ["smoke.mjs"], consumer);
-  const browserResolution = runResult(
+  run(
     process.execPath,
-    ["--input-type=module", "--eval", 'await import("@astilba/env/browser");'],
+    [
+      "--input-type=module",
+      "--eval",
+      'const browser = await import("@astilba/env/browser"); if (typeof browser.loadBrowserBootstrap !== "function") throw new Error("Browser export is incomplete.");',
+    ],
     consumer
   );
-  if (
-    browserResolution.status === 0 ||
-    !browserResolution.stderr.includes("ERR_PACKAGE_PATH_NOT_EXPORTED")
-  ) {
-    throw new Error("Node resolved the browser-only export.");
-  }
 } finally {
   await removeConsumer(consumer);
 }
