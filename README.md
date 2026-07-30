@@ -10,7 +10,7 @@ Env does not replace a secret manager or `.env` files. It does not receive, stor
 pnpm add @astilba/env
 ```
 
-The declaration builders, generator, and CLI require Node.js `22.14.0` or later within the published major-version ranges. Generated deployment-lifecycle server targets using Astilba's built-in codecs can also use `@astilba/env/runtime` in Cloudflare Workers without the `nodejs_compat` compatibility flag. Workers refuse build-lifecycle, request-lifecycle, and opaque-schema target execution. Env adds no compatibility-date floor; use the latest date supported by your installed Wrangler. The archive admission lane pins Wrangler `4.115.0` at its supported `2026-07-29` date. Vite support is optional and supports Vite versions from `8.1.5` up to, but not including, `9.0.0`.
+The declaration builders, generator, and CLI require Node.js `22.14.0` or later within the published major-version ranges. Generated deployment-lifecycle server targets using Astilba's built-in codecs can also use `@astilba/env/runtime` in Cloudflare Workers without the `nodejs_compat` compatibility flag. Workers refuse build-lifecycle, request-lifecycle, and opaque-schema target execution. Env adds no compatibility-date floor; use the latest date supported by your installed Wrangler. The archive admission lane pins Wrangler `4.115.0` at its supported `2026-07-29` date and observes its bundled workerd `1.20260722.1`; this is singleton admission evidence, not a wider compatibility claim. Vite support is optional and supports Vite versions from `8.1.5` up to, but not including, `9.0.0`.
 
 ## Start with one declaration
 

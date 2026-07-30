@@ -288,6 +288,34 @@ describe("provider metadata boundary", () => {
     });
   });
 
+  it("reports an absent secret inventory as offline-unverified without provider access", () => {
+    const result = checkWranglerBindingConformance(
+      input({
+        bindingPlan: plan({
+          class: "confidential",
+          kind: "secret_text",
+          rawName: "TOKEN",
+        }),
+        wranglerJsonc: "{}",
+      }) as never
+    );
+
+    expect(result).toMatchObject({
+      confidence: "PROVEN",
+      grade: "UNVERIFIED",
+      issues: [{ code: "SECRET_INVENTORY_UNVERIFIED", name: "TOKEN" }],
+      liveVerified: false,
+      pass: false,
+    });
+    expect(result.bindings).toContainEqual({
+      class: "confidential",
+      expectedKind: "secret_text",
+      name: "TOKEN",
+      observedKind: null,
+      status: "UNVERIFIED",
+    });
+  });
+
   it("observes provider DTO containers through sorted descriptors without ordinary reads", () => {
     const originalPlan = plan();
     const originalBinding = originalPlan.bindings[0];
