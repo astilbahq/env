@@ -43,7 +43,6 @@ export default defineConfig({
     "no-use-before-define": "off",
     "no-plusplus": "off",
     "prefer-destructuring": "off",
-    "github/no-then": "off",
     // Exhaustive discriminated-union switches intentionally have no fallback;
     // an unreachable default would mask a future member from TypeScript.
     "default-case": "off",
@@ -66,23 +65,6 @@ export default defineConfig({
     "eslint/max-classes-per-file": "off",
     "oxc/no-barrel-file": "off",
     "sort-keys": "off",
-    "sonarjs/cognitive-complexity": "off",
-    "sonarjs/expression-complexity": "off",
-    // Mirrors the nested-ternary policy above for Sonar's duplicate rule.
-    "sonarjs/no-nested-conditional": "off",
-    "sonarjs/no-collapsible-if": "off",
-    "sonarjs/no-duplicate-string": "off",
-    "sonarjs/no-nested-template-literals": "off",
-    // Generated source keys deliberately include uppercase environment-style
-    // names, including accessor traps used to prove unselected keys are unread.
-    "sonarjs/function-name": "off",
-    "sonarjs/todo-tag": "off",
-    "sonarjs/too-many-break-or-continue-in-loop": "off",
-    // Inline literal unions at a single validation boundary are more legible
-    // than one-use aliases.
-    "sonarjs/max-union-size": "off",
-    "sonarjs/use-type-alias": "off",
-    "sonarjs/variable-name": "off",
     // Node child-process and stream events require explicit promise bridges;
     // no upstream promise exists for these callbacks.
     "promise/avoid-new": "off",
@@ -135,6 +117,14 @@ export default defineConfig({
       },
     },
     {
+      files: ["scripts/verify-consumer.mjs"],
+      rules: {
+        // Every package manager must independently consume and smoke-test the
+        // packed archive; the finite verification matrix is intentional.
+        "no-unreachable-loop": "off",
+      },
+    },
+    {
       files: [
         "scripts/verify-portable-equivalence.mjs",
         "src/product/generate.ts",
@@ -175,17 +165,8 @@ export default defineConfig({
       rules: {
         // These declaration forms and aliases are frozen public protocol names.
         // Replacing them changes the emitted declaration contract.
-        "sonarjs/redundant-type-aliases": "off",
         "typescript/no-empty-interface": "off",
         "typescript/no-empty-object-type": "off",
-      },
-    },
-    {
-      files: ["src/authoring/environment.ts"],
-      rules: {
-        // This literal is a minimum-size generated envelope witness, not a URL
-        // used for transport or credentials.
-        "sonarjs/no-clear-text-protocols": "off",
       },
     },
     {
