@@ -82,7 +82,7 @@
     "eslint-plugin-github": "6.0.0",
     "eslint-plugin-sonarjs": "4.1.0",
     "jsonc-parser": "3.3.1",
-    "knip": "6.24.0",
+    "knip": "6.29.0",
     "oxfmt": "0.57.0",
     "oxlint": "1.72.0",
     "oxlint-tsgolint": "7.0.2001",
