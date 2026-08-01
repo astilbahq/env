@@ -85,7 +85,7 @@
     "knip": "6.24.0",
     "oxfmt": "0.57.0",
     "oxlint": "1.72.0",
-    "oxlint-tsgolint": "0.24.0",
+    "oxlint-tsgolint": "7.0.2001",
     "publint": "0.3.21",
     "typescript": "6.0.3",
     "typescript-7": "npm:typescript@7.0.2",
