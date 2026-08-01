@@ -69,7 +69,11 @@ const resolveNpmInvocation = (
  * @param {readonly string[]} arguments_
  * @param {{ execPath?: string, platform?: NodeJS.Platform }} [options]
  */
-export const resolvePackageManagerInvocation = (manager, arguments_, options) =>
+export const resolvePackageManagerInvocation = (
+  manager,
+  arguments_,
+  options
+) =>
   manager === "npm"
     ? resolveNpmInvocation(arguments_, options)
     : { arguments_, command: manager };
