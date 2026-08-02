@@ -14,6 +14,8 @@ pnpm pack:artifact
 pnpm verify:consumers
 ```
 
+The public adoption examples have their own lockfile. Validate them from `examples` with `pnpm install --frozen-lockfile` and `pnpm verify:all`. Generated `.astilba/env` output in those apps is intentionally committed: run `pnpm env:generate` after changing a declaration and include the result.
+
 Keep public and server projections physically separate. Do not add generated `dist` output, local artifacts, configuration files, credentials, or package-manager caches to Git.
 
 ## Pull requests

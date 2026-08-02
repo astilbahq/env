@@ -1,0 +1,13 @@
+packages:
+  - "node-service"
+  - "cloudflare-worker"
+  - "next-static-shell"
+  - "vite"
+
+nodeLinker: hoisted
+minimumReleaseAge: 1440
+
+allowBuilds:
+  esbuild: true
+  sharp: false
+  workerd: true

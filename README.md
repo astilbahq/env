@@ -65,6 +65,10 @@ There is no hosted control plane and no framework-specific semantic layer. Next.
 
 Read the [public documentation](https://astilba.com/docs/env/) for the supported release boundary and the [migration guide](https://astilba.com/docs/env/migrate-from-next-dynamic-env/) before replacing `next-dynamic-env`. The guide names intentional compatibility changes, including validation and browser-delivery differences.
 
+## Executable examples
+
+The [examples workspace](./examples) contains small, independent Node, Cloudflare Worker, Next.js, and Vite applications. Each installs the released npm package rather than this checkout. From `examples`, run `pnpm install --frozen-lockfile`, then `pnpm verify:all` to regenerate-check and exercise them.
+
 ## Security
 
 Please report vulnerabilities through the [security policy](https://github.com/astilbahq/env/security/policy). Do not include secrets or configuration values in a public issue.

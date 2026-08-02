@@ -78,6 +78,20 @@ export default defineConfig({
   },
   overrides: [
     {
+      files: ["examples/**/.astilba/env/**/*.ts"],
+      rules: {
+        // These exact registry-generated modules are validated by
+        // `generate --check`; their source shape is not application-authored.
+        "eslint/no-shadow": "off",
+        "import/consistent-type-specifier-style": "off",
+        "typescript/no-misused-spread": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/dot-notation": "off",
+        "unicorn/filename-case": "off",
+        "unicorn/numeric-separators-style": "off",
+      },
+    },
+    {
       files: ["scripts/**/*.mjs"],
       rules: {
         // Verification scripts use JSDoc only where it gives
@@ -85,6 +99,24 @@ export default defineConfig({
         // turns those annotations into maintenance-only documentation.
         "jsdoc/require-param-description": "off",
         "jsdoc/require-returns-description": "off",
+      },
+    },
+    {
+      files: ["examples/scripts/verify-adoption.mjs"],
+      rules: {
+        // This executable verifier intentionally performs runtime shape checks
+        // over process, filesystem, registry, and HTTP boundaries. CheckJS
+        // cannot express those dynamic shapes without obscuring the checks.
+        "eslint/no-promise-executor-return": "off",
+        "jsdoc/require-param-description": "off",
+        "no-unreachable-loop": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/strict-boolean-expressions": "off",
+        "typescript/strict-void-return": "off",
       },
     },
     {
