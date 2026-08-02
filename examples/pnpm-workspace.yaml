@@ -4,13 +4,10 @@ packages:
   - "next-static-shell"
   - "vite"
 
+nodeLinker: hoisted
+minimumReleaseAge: 1440
+
 allowBuilds:
   esbuild: true
   sharp: false
   workerd: true
-
-minimumReleaseAgeExclude:
-  - "@astilba/env@0.2.2"
-  - "next@16.2.12"
-  - "vite@8.1.5"
-  - "wrangler@4.115.0"

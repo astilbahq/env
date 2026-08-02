@@ -6,7 +6,8 @@
     "build": "vite build",
     "env:check": "cross-env VITE_APP_NAME=Env-Vite-shell astilba-env generate --check",
     "env:generate": "cross-env VITE_APP_NAME=Env-Vite-shell astilba-env generate",
-    "start": "node --experimental-strip-types server.ts"
+    "start": "node --experimental-strip-types server.ts",
+    "start:example": "cross-env VITE_LABEL=local-label VITE_SERVICE_TOKEN=kept-on-server node --experimental-strip-types server.ts"
   },
   "dependencies": {
     "@astilba/env": "0.2.2"

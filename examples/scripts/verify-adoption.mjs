@@ -5,7 +5,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, readdir, rm } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
-import { resolve } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const REGISTRY = "https://registry.npmjs.org/@astilba/env/-/env-0.2.2.tgz";
@@ -15,6 +16,8 @@ const VERSION = "0.2.2";
 const NEXT_PRIVATE_BINDING = "NEXT_SERVICE_TOKEN";
 const NEXT_PRIVATE_NAME = "serviceToken";
 const NEXT_PRIVATE_VALUE = "next-server-only-value";
+const STOP_POLL_INTERVAL = 50;
+const STOP_TIMEOUT = 5000;
 const apps = Object.freeze([
   "node-service",
   "cloudflare-worker",
@@ -46,30 +49,81 @@ const run = (command, arguments_, cwd = ROOT, environment = {}) => {
 const start = (command, arguments_, cwd, environment) => {
   const child = spawn(command, arguments_, {
     cwd,
+    detached: process.platform !== "win32",
     env: { ...process.env, ...environment },
     stdio: "ignore",
   });
   return child;
 };
 
+/** @param {unknown} error */
+const isMissingProcess = (error) =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  error.code === "ESRCH";
+
 /** @param {import("node:child_process").ChildProcess} child */
-const stop = async (child) => {
-  if (child.exitCode !== null) {
+const processTreeIsRunning = (child) => {
+  if (process.platform === "win32" || child.pid === undefined) {
+    return child.exitCode === null;
+  }
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (error) {
+    if (isMissingProcess(error)) {
+      return false;
+    }
+    throw error;
+  }
+};
+
+/** @param {import("node:child_process").ChildProcess} child @param {boolean} force */
+const signalProcessTree = (child, force) => {
+  if (child.pid === undefined) {
     return;
   }
-  child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve_) => {
-      child.once("close", () => {
-        resolve_(undefined);
-      });
-    }),
-    new Promise((resolve_) => {
-      setTimeout(resolve_, 5000);
-    }),
-  ]);
-  if (child.exitCode === null) {
-    child.kill("SIGKILL");
+  if (process.platform === "win32") {
+    spawnSync(
+      "taskkill",
+      ["/PID", String(child.pid), "/T", ...(force ? ["/F"] : [])],
+      { stdio: "ignore" }
+    );
+    return;
+  }
+  try {
+    process.kill(-child.pid, force ? "SIGKILL" : "SIGTERM");
+  } catch (error) {
+    if (!isMissingProcess(error)) {
+      throw error;
+    }
+  }
+};
+
+/** @param {import("node:child_process").ChildProcess} child */
+const waitForProcessTree = async (child) => {
+  const deadline = Date.now() + STOP_TIMEOUT;
+  while (processTreeIsRunning(child) && Date.now() < deadline) {
+    await new Promise((resolve_) => {
+      setTimeout(resolve_, STOP_POLL_INTERVAL);
+    });
+  }
+  return !processTreeIsRunning(child);
+};
+
+/** @param {import("node:child_process").ChildProcess} child */
+const stop = async (child) => {
+  if (!processTreeIsRunning(child)) {
+    return;
+  }
+  signalProcessTree(child, false);
+  if (await waitForProcessTree(child)) {
+    return;
+  }
+  signalProcessTree(child, true);
+  if (!(await waitForProcessTree(child))) {
+    fail(`Could not stop process tree ${child.pid ?? "without a pid"}.`);
   }
 };
 
@@ -152,9 +206,12 @@ const verifyRegistryIdentity = async () => {
     }
   }
   for (const app of apps) {
+    const installedEntry = createRequire(
+      resolve(ROOT, app, "package.json")
+    ).resolve("@astilba/env");
     const installed = JSON.parse(
       await readFile(
-        resolve(ROOT, app, "node_modules/@astilba/env/package.json"),
+        resolve(dirname(dirname(installedEntry)), "package.json"),
         "utf-8"
       )
     );
@@ -249,14 +306,8 @@ const verifyNode = async () => {
 const verifyWorker = async () => {
   const cwd = resolve(ROOT, "cloudflare-worker");
   const child = start(
-    process.execPath,
-    [
-      resolve(cwd, "node_modules/wrangler/bin/wrangler.js"),
-      "dev",
-      "--local",
-      "--port",
-      "8787",
-    ],
+    "pnpm",
+    ["exec", "wrangler", "dev", "--local", "--port", "8787"],
     cwd,
     {}
   );
@@ -273,12 +324,7 @@ const verifyWorker = async () => {
 const verifyNext = async () => {
   const cwd = resolve(ROOT, "next-static-shell");
   await rm(resolve(cwd, ".next"), { force: true, recursive: true });
-  run(
-    process.execPath,
-    [resolve(cwd, "node_modules/next/dist/bin/next"), "build", "--webpack"],
-    cwd,
-    { NEXT_APP_NAME: "Env-static-shell" }
-  );
+  run("pnpm", ["build"], cwd, { NEXT_APP_NAME: "Env-static-shell" });
   const staticRoot = resolve(cwd, ".next/static");
   const initial = await digestTree(staticRoot);
   const manifest = await readFile(
@@ -299,19 +345,14 @@ const verifyNext = async () => {
     NEXT_PRIVATE_VALUE,
   ];
   await scan(staticRoot, privateMarkers);
-  /** @param {string} label */
-  const readProfile = async (label) => {
-    const child = start(
-      process.execPath,
-      [
-        resolve(cwd, "node_modules/next/dist/bin/next"),
-        "start",
-        "--port",
-        "3103",
-      ],
-      cwd,
-      { NEXT_LABEL: label, NEXT_SERVICE_TOKEN: NEXT_PRIVATE_VALUE }
-    );
+  /** @param {string} label @param {boolean} [exampleScript] */
+  const readProfile = async (label, exampleScript = false) => {
+    const child = exampleScript
+      ? start("pnpm", ["start:example"], cwd, { PORT: "3103" })
+      : start("pnpm", ["exec", "next", "start", "--port", "3103"], cwd, {
+          NEXT_LABEL: label,
+          NEXT_SERVICE_TOKEN: NEXT_PRIVATE_VALUE,
+        });
     try {
       const response = await fetchReady("http://localhost:3103/api/env", child);
       const body = await response.text();
@@ -327,7 +368,7 @@ const verifyNext = async () => {
       await stop(child);
     }
   };
-  const alpha = await readProfile("alpha");
+  const alpha = await readProfile("local-label", true);
   const beta = await readProfile("beta");
   if (alpha === beta || initial !== (await digestTree(staticRoot))) {
     fail("One Next build was not reused unchanged across deployment profiles.");
@@ -363,12 +404,7 @@ const scan = async (directory, markers) => {
 const verifyVite = async () => {
   const cwd = resolve(ROOT, "vite");
   await rm(resolve(cwd, "dist"), { force: true, recursive: true });
-  run(
-    process.execPath,
-    [resolve(cwd, "node_modules/vite/bin/vite.js"), "build"],
-    cwd,
-    { VITE_APP_NAME: "Env-Vite-shell" }
-  );
+  run("pnpm", ["build"], cwd, { VITE_APP_NAME: "Env-Vite-shell" });
   const sourceMapCount = await scan(resolve(cwd, "dist"), [
     "VITE_SERVICE_TOKEN",
     "serviceToken",
@@ -410,13 +446,8 @@ const verifyVite = async () => {
     await stop(assetServer);
   }
   const rejected = spawnSync(
-    process.execPath,
-    [
-      resolve(cwd, "node_modules/vite/bin/vite.js"),
-      "build",
-      "--config",
-      "vite.private.config.ts",
-    ],
+    "pnpm",
+    ["exec", "vite", "build", "--config", "vite.private.config.ts"],
     { cwd, encoding: "utf-8" }
   );
   if (
@@ -427,26 +458,32 @@ const verifyVite = async () => {
   ) {
     fail("Vite did not refuse a generated private server import.");
   }
-  /** @param {string} label @param {string} hostname @param {string} [configuredOrigin] @param {string} [expectedOrigin] */
+  /** @param {string} label @param {string} hostname @param {string} [configuredOrigin] @param {string} [expectedOrigin] @param {boolean} [exampleScript] */
   const readProfile = async (
     label,
     hostname,
     configuredOrigin,
-    expectedOrigin
+    expectedOrigin,
+    exampleScript = false
   ) => {
     const requestOrigin = `http://${hostname}:4173`;
     const audienceOrigin = expectedOrigin ?? requestOrigin;
-    const child = start(
-      process.execPath,
-      ["--experimental-strip-types", "server.ts"],
-      cwd,
-      {
-        PORT: "4173",
-        VITE_LABEL: label,
-        VITE_PUBLIC_ORIGIN: configuredOrigin,
-        VITE_SERVICE_TOKEN: "kept-on-server",
-      }
-    );
+    const child = exampleScript
+      ? start("pnpm", ["start:example"], cwd, {
+          PORT: "4173",
+          VITE_PUBLIC_ORIGIN: configuredOrigin,
+        })
+      : start(
+          process.execPath,
+          ["--experimental-strip-types", "server.ts"],
+          cwd,
+          {
+            PORT: "4173",
+            VITE_LABEL: label,
+            VITE_PUBLIC_ORIGIN: configuredOrigin,
+            VITE_SERVICE_TOKEN: "kept-on-server",
+          }
+        );
     try {
       const response = await fetchReady(`${requestOrigin}/env.json`, child);
       const body = await response.text();
@@ -477,7 +514,13 @@ const verifyVite = async () => {
       await stop(child);
     }
   };
-  const alpha = await readProfile("alpha", "127.0.0.1");
+  const alpha = await readProfile(
+    "local-label",
+    "127.0.0.1",
+    undefined,
+    undefined,
+    true
+  );
   const beta = await readProfile("beta", "localhost");
   await readProfile(
     "configured",
