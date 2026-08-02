@@ -12,7 +12,7 @@ importers:
     dependencies:
       '@astilba/env':
         specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(esbuild@0.28.1))
+        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
     devDependencies:
       wrangler:
         specifier: 4.115.0
@@ -22,7 +22,7 @@ importers:
     dependencies:
       '@astilba/env':
         specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(esbuild@0.28.1))
+        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
       next:
         specifier: 16.2.12
         version: 16.2.12(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -33,6 +33,9 @@ importers:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
+      '@types/node':
+        specifier: 26.1.2
+        version: 26.1.2
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -50,20 +53,20 @@ importers:
     dependencies:
       '@astilba/env':
         specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(esbuild@0.28.1))
+        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
 
   vite:
     dependencies:
       '@astilba/env':
         specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(esbuild@0.28.1))
+        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
     devDependencies:
       cross-env:
         specifier: 10.1.0
         version: 10.1.0
       vite:
         specifier: 8.1.5
-        version: 8.1.5(esbuild@0.28.1)
+        version: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)
 
 packages:
 
@@ -801,6 +804,9 @@ packages:
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
+  '@types/node@26.1.2':
+    resolution: {integrity: sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg==}
+
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
     peerDependencies:
@@ -1073,6 +1079,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
+
   undici@7.28.0:
     resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
     engines: {node: '>=20.18.1'}
@@ -1163,9 +1172,9 @@ packages:
 
 snapshots:
 
-  '@astilba/env@0.2.2(vite@8.1.5(esbuild@0.28.1))':
+  '@astilba/env@0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))':
     optionalDependencies:
-      vite: 8.1.5(esbuild@0.28.1)
+      vite: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
 
@@ -1615,6 +1624,10 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@types/node@26.1.2':
+    dependencies:
+      undici-types: 8.3.0
+
   '@types/react-dom@19.2.3(@types/react@19.2.18)':
     dependencies:
       '@types/react': 19.2.18
@@ -1919,13 +1932,15 @@ snapshots:
 
   typescript@6.0.3: {}
 
+  undici-types@8.3.0: {}
+
   undici@7.28.0: {}
 
   unenv@2.0.0-rc.24:
     dependencies:
       pathe: 2.0.3
 
-  vite@8.1.5(esbuild@0.28.1):
+  vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -1933,6 +1948,7 @@ snapshots:
       rolldown: 1.1.5
       tinyglobby: 0.2.17
     optionalDependencies:
+      '@types/node': 26.1.2
       esbuild: 0.28.1
       fsevents: 2.3.3
 
