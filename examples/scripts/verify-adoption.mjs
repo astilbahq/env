@@ -30,9 +30,19 @@ const fail = (message) => {
   throw new Error(message);
 };
 
+/** @param {string} command @param {readonly string[]} arguments_ @param {NodeJS.Platform} [platform] */
+const commandInvocation = (command, arguments_, platform = process.platform) =>
+  command === "pnpm" && platform === "win32"
+    ? {
+        arguments: ["/d", "/s", "/c", "pnpm.cmd", ...arguments_],
+        command: process.env.ComSpec ?? "cmd.exe",
+      }
+    : { arguments: [...arguments_], command };
+
 /** @param {string} command @param {readonly string[]} arguments_ @param {string} [cwd] @param {NodeJS.ProcessEnv} [environment] */
 const run = (command, arguments_, cwd = ROOT, environment = {}) => {
-  const result = spawnSync(command, arguments_, {
+  const invocation = commandInvocation(command, arguments_);
+  const result = spawnSync(invocation.command, invocation.arguments, {
     cwd,
     encoding: "utf-8",
     env: { ...process.env, ...environment },
@@ -47,7 +57,8 @@ const run = (command, arguments_, cwd = ROOT, environment = {}) => {
 
 /** @param {string} command @param {readonly string[]} arguments_ @param {string} cwd @param {NodeJS.ProcessEnv} environment */
 const start = (command, arguments_, cwd, environment) => {
-  const child = spawn(command, arguments_, {
+  const invocation = commandInvocation(command, arguments_);
+  const child = spawn(invocation.command, invocation.arguments, {
     cwd,
     detached: process.platform !== "win32",
     env: { ...process.env, ...environment },
@@ -162,6 +173,21 @@ const fetchWithRawHost = async (url, host) =>
     request.on("error", reject);
     request.end();
   });
+
+const verifyWindowsPackageManagerInvocation = () => {
+  const invocation = commandInvocation(
+    "pnpm",
+    ["exec", "vite", "build"],
+    "win32"
+  );
+  if (
+    invocation.command !== (process.env.ComSpec ?? "cmd.exe") ||
+    JSON.stringify(invocation.arguments) !==
+      JSON.stringify(["/d", "/s", "/c", "pnpm.cmd", "exec", "vite", "build"])
+  ) {
+    fail("Windows pnpm invocation is not cmd.exe-safe.");
+  }
+};
 
 /** @param {string} directory */
 const digestTree = async (directory) => {
@@ -445,11 +471,17 @@ const verifyVite = async () => {
   } finally {
     await stop(assetServer);
   }
-  const rejected = spawnSync(
-    "pnpm",
-    ["exec", "vite", "build", "--config", "vite.private.config.ts"],
-    { cwd, encoding: "utf-8" }
-  );
+  const privateBuild = commandInvocation("pnpm", [
+    "exec",
+    "vite",
+    "build",
+    "--config",
+    "vite.private.config.ts",
+  ]);
+  const rejected = spawnSync(privateBuild.command, privateBuild.arguments, {
+    cwd,
+    encoding: "utf-8",
+  });
   if (
     rejected.status === 0 ||
     !`${rejected.stdout}${rejected.stderr}`.includes(
@@ -586,6 +618,7 @@ const command = process.argv[2] ?? "all";
 if (!new Set(["all", "next", "node", "vite", "windows"]).has(command)) {
   fail("Usage: verify-adoption.mjs <all|next|node|vite|windows>");
 }
+verifyWindowsPackageManagerInvocation();
 await verifyRegistryIdentity();
 run("pnpm", ["env:check"]);
 if (command === "all" || command === "node" || command === "windows") {
