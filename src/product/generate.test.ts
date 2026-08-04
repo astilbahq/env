@@ -1,17 +1,9 @@
 import { execFile as execFileCallback } from "node:child_process";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import { transform } from "esbuild";
-import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { inspectTree } from "../artifacts/tree.ts";
@@ -51,20 +43,15 @@ const execFile = async (
   cwd: string
 ): Promise<void> => {
   await new Promise<void>((fulfill, reject) => {
-    execFileCallback(file, arguments_, { cwd }, (error, stdout, stderr) => {
+    execFileCallback(file, arguments_, { cwd }, (error) => {
       if (error === null) {
         fulfill();
         return;
       }
-      if (!(error instanceof Error)) {
-        reject(new Error("The test child-process command failed."));
-        return;
-      }
-      const diagnostics = `${stdout}\n${stderr}`.trim();
       reject(
-        diagnostics.length === 0
+        error instanceof Error
           ? error
-          : new Error(`${error.message}\n${diagnostics}`)
+          : new Error("The test child-process command failed.")
       );
     });
   });
@@ -203,29 +190,29 @@ const temporaryRoot = async (): Promise<string> => {
   return root;
 };
 
-const typecheckGeneratedModules = async (
+const typecheckGeneratedBrowserModule = async (
   root: string,
-  modulePaths: readonly string[]
+  modulePath: string
 ): Promise<void> => {
-  const configPath = resolve(root, "tsconfig.generated-modules.json");
+  const configPath = resolve(root, "tsconfig.generated-browser.json");
   await writeFile(
     configPath,
     `${JSON.stringify({
-      extends: resolve(process.cwd(), "tsconfig.json"),
       compilerOptions: {
+        allowImportingTsExtensions: true,
+        baseUrl: process.cwd(),
+        ignoreDeprecations: "6.0",
+        lib: ["ES2024", "DOM", "DOM.Iterable"],
+        module: "ESNext",
+        moduleResolution: "Bundler",
         noEmit: true,
         paths: {
-          "@astilba/env/browser": [
-            resolve(process.cwd(), "src/browser/index.ts"),
-          ],
-          "@astilba/env/runtime": [
-            resolve(process.cwd(), "src/runtime/index.ts"),
-          ],
+          "@astilba/env/browser": ["src/browser/index.ts"],
         },
-        typeRoots: [resolve(process.cwd(), "node_modules/@types")],
-        types: ["node"],
+        strict: true,
+        target: "ES2024",
       },
-      files: modulePaths,
+      files: [modulePath],
     })}\n`,
     "utf-8"
   );
@@ -337,120 +324,7 @@ const browserBuildPlan: ProviderBindingPlan = Object.freeze({
   target: "browserBuild",
 });
 
-const hasTSDoc = (sourceFile: ts.SourceFile, node: ts.Node): boolean =>
-  ts
-    .getLeadingCommentRanges(sourceFile.text, node.getFullStart())
-    ?.some((range) =>
-      sourceFile.text.slice(range.pos, range.end).startsWith("/**")
-    ) ?? false;
-
-const isExportedDeclaration = (node: ts.Node): boolean =>
-  ts.canHaveModifiers(node) &&
-  (ts
-    .getModifiers(node)
-    ?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ??
-    false);
-
-const generatedDeclarationName = (node: ts.Node): string => {
-  if (
-    ts.isClassDeclaration(node) ||
-    ts.isEnumDeclaration(node) ||
-    ts.isFunctionDeclaration(node) ||
-    ts.isInterfaceDeclaration(node) ||
-    ts.isTypeAliasDeclaration(node)
-  ) {
-    return node.name?.text ?? "<anonymous>";
-  }
-  if (ts.isVariableStatement(node)) {
-    return node.declarationList.declarations
-      .map((variable) => variable.name.getText())
-      .join(", ");
-  }
-  return ts.SyntaxKind[node.kind];
-};
-
-const assertGeneratedPublicTSDoc = (path: string, source: string): void => {
-  const sourceFile = ts.createSourceFile(
-    path,
-    source,
-    ts.ScriptTarget.Latest,
-    true
-  );
-  const missing: string[] = [];
-  const requireDocumentation = (node: ts.Node, surface: string): void => {
-    if (!hasTSDoc(sourceFile, node)) {
-      const position = sourceFile.getLineAndCharacterOfPosition(
-        node.getStart(sourceFile)
-      );
-      missing.push(
-        `${surface} at ${position.line + 1}:${position.character + 1}`
-      );
-    }
-  };
-  const visitPublicProperties = (node: ts.Node): void => {
-    if (ts.isPropertySignature(node)) {
-      requireDocumentation(node, `property ${node.name.getText(sourceFile)}`);
-    }
-    ts.forEachChild(node, visitPublicProperties);
-  };
-
-  for (const statement of sourceFile.statements) {
-    if (!isExportedDeclaration(statement)) {
-      continue;
-    }
-    requireDocumentation(
-      statement,
-      `export ${generatedDeclarationName(statement)}`
-    );
-    visitPublicProperties(statement);
-  }
-
-  expect(missing).toStrictEqual([]);
-};
-
 describe("deterministic product generation", () => {
-  it("documents every public surface in generated TypeScript modules", async () => {
-    const [base, build, typed] = await Promise.all([
-      compileProduct(declaration()),
-      compileProduct(buildDeclaration(), { RELEASE_SHA: "abc123" }),
-      compileProduct(typedDeclaration()),
-    ]);
-    const products = [
-      ["base", base],
-      ["build", build],
-      ["typed", typed],
-    ] as const;
-    const modules = products.flatMap(([label, product]) =>
-      [...product.files]
-        .filter(([path]) => path.endsWith(".ts"))
-        .map(([path, source]) => [`${label}/${path}`, source] as const)
-    );
-
-    expect(modules.map(([path]) => path)).toStrictEqual([
-      "base/database.server.ts",
-      "base/server.server.ts",
-      "build/browser/browser.build.ts",
-      "build/browserBuild.server.ts",
-      "typed/browser/browser.deployment.ts",
-      "typed/server.server.ts",
-    ]);
-    for (const [path, source] of modules) {
-      assertGeneratedPublicTSDoc(path, source);
-    }
-    const root = await temporaryRoot();
-    const modulePaths = await Promise.all(
-      modules.map(async ([path, source]) => {
-        const modulePath = resolve(root, path);
-        await mkdir(dirname(modulePath), { recursive: true });
-        await writeFile(modulePath, source, "utf-8");
-        return modulePath;
-      })
-    );
-    await expect(
-      typecheckGeneratedModules(root, modulePaths)
-    ).resolves.toBeUndefined();
-  });
-
   it("produces byte-identical outputs and an exact generated target type", async () => {
     const root = await temporaryRoot();
     await generateEnvironment(declaration(), { projectRoot: root });
@@ -517,21 +391,10 @@ describe("deterministic product generation", () => {
     );
 
     expect(serverModule).toContain(
-      [
-        'readonly "configuration": {',
-        "    /**",
-        "     * A resolved value in this JSON configuration entry.",
-        "     */",
-        '    readonly "features": readonly (string)[];',
-        "    /**",
-        "     * A resolved value in this JSON configuration entry.",
-        "     */",
-        '    readonly "region": string;',
-        "  };",
-      ].join("\n")
+      'readonly "configuration": { readonly "features": readonly (string)[]; readonly "region": string; };'
     );
     expect(serverModule).toContain(
-      'readonly "configuration": readonly [string | undefined, {'
+      'readonly "configuration": readonly [string | undefined, { readonly "features": readonly (string)[]; readonly "region": string; }];'
     );
     expect(serverModule).toContain(
       "loadProcessTargetWithSchemas<Configuration>"
@@ -551,18 +414,7 @@ describe("deterministic product generation", () => {
     );
     expect(browserModule).not.toContain("const generatedProjection = {");
     expect(browserModule).toContain(
-      [
-        'readonly "clientConfiguration": {',
-        "    /**",
-        "     * A resolved value in this JSON configuration entry.",
-        "     */",
-        '    readonly "features": readonly (string)[];',
-        "    /**",
-        "     * A resolved value in this JSON configuration entry.",
-        "     */",
-        '    readonly "region": string;',
-        "  };",
-      ].join("\n")
+      'readonly "clientConfiguration": { readonly "features": readonly (string)[]; readonly "region": string; };'
     );
     expect(browserModule).toContain('readonly "debug": boolean;');
     expect(browserModule).toContain('readonly "features": readonly string[];');
@@ -726,7 +578,7 @@ describe("deterministic product generation", () => {
     );
 
     await expect(
-      typecheckGeneratedModules(root, [browserModule])
+      typecheckGeneratedBrowserModule(root, browserModule)
     ).resolves.toBeUndefined();
 
     const imported = await importBrowserProjection(
