@@ -7,6 +7,7 @@ packages:
 overrides:
   "next>postcss": 8.5.25
   "next>sharp": 0.35.3
+  undici: 7.29.0
 
 nodeLinker: hoisted
 minimumReleaseAge: 1440
