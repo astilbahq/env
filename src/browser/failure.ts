@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- The frozen browser API requires this exact guarded error class and private construction path. */
 
+/** Stable machine-readable reason for rejecting a public bootstrap. */
 export type BootstrapFailureCode =
   | "BOOTSTRAP_AUDIENCE_MISMATCH"
   | "BOOTSTRAP_BODY_READ_FAILED"
@@ -32,7 +33,13 @@ const CONSTRUCTION_TOKEN = Object.freeze({});
 const DIRECT_CONSTRUCTION_MESSAGE =
   "BootstrapFailure cannot be constructed directly.";
 
+/**
+ * Error thrown when browser bootstrap transport, identity, or data validation
+ * fails. Constructing this class directly is intentionally rejected; inspect
+ * {@link code} rather than parsing the message.
+ */
 export class BootstrapFailure extends Error {
+  /** Stable reason for the rejected bootstrap. */
   declare readonly code: BootstrapFailureCode;
 
   private constructor();

@@ -1,13 +1,18 @@
+/** When a configuration value may be resolved. */
 export type Lifecycle = "build" | "deployment" | "request";
 // oxlint-disable-next-line sonarjs/redundant-type-aliases -- The frozen public declarations name contract identifiers explicitly.
 type ContractId = string;
 // oxlint-disable-next-line sonarjs/redundant-type-aliases -- The frozen public declarations name local identifiers explicitly.
+/** Local contract identifier used for entries, consumers, and rules. */
 export type LocalId = string;
 // oxlint-disable-next-line sonarjs/redundant-type-aliases -- The frozen public declarations distinguish raw source names from local identifiers.
+/** Property name read from an application-owned configuration source. */
 export type RawSourceName = string;
 
+/** Pair of the declaring fragment identifier and local entry identifier. */
 export type EntryIdentity = readonly [fragmentId: string, localEntryId: string];
 
+/** Portable JSON shape that can be represented in compiled contract metadata. */
 export type PortableShape =
   | Readonly<{ kind: "boolean" }>
   | Readonly<{ kind: "null" }>
@@ -32,10 +37,12 @@ export type PortableShape =
       }>[];
     }>;
 
+/** Portable output shape for an application-owned private validator. */
 export type OpaqueShape =
   | PortableShape
   | Readonly<{ kind: "optional"; value: PortableShape }>;
 
+/** Input shape accepted before an opaque validator runs. */
 export type OpaqueInputShape =
   | Readonly<{ kind: "string" }>
   | Readonly<{
@@ -43,6 +50,7 @@ export type OpaqueInputShape =
       value: Readonly<{ kind: "string" }>;
     }>;
 
+/** Canonical descriptor for one generated entry codec. */
 export type CodecDescriptor =
   | Readonly<{
       abi: "astilba.env.string-code-point/v1";
@@ -121,27 +129,45 @@ type BrowserPortableCodecDescriptor = Exclude<
   | Readonly<{ kind: "text" }>
 >;
 
+/** Rule requiring all referenced entries to be present or absent together. */
 export type PresentTogetherRule = Readonly<{
+  /** Rule format identifier. */
   abi: "astilba.env.present-together/v1";
+  /** Fully qualified identities of the entries governed by this rule. */
   entries: readonly EntryIdentity[];
+  /** Local rule identifier. */
   id: LocalId;
+  /** Discriminator for this rule form. */
   kind: "present-together";
 }>;
 
+/** One browser-safe entry selected by a public projection. */
 export type PublicProjectionEntry = Readonly<{
+  /** Portable codec used to decode the public source. */
   codec: BrowserPortableCodecDescriptor;
+  /** Declaring fragment and entry identifiers. */
   identity: EntryIdentity;
+  /** Permitted resolution lifecycle. */
   lifecycle: Lifecycle;
+  /** Local entry identifier used in the resolved configuration. */
   name: LocalId;
+  /** Whether a missing source is a configuration failure. */
   required: boolean;
 }>;
 
+/** One server entry selected by a server projection. */
 export type ServerProjectionEntry = Readonly<{
+  /** Codec used to decode or validate the source. */
   codec: CodecDescriptor;
+  /** Declaring fragment and entry identifiers. */
   identity: EntryIdentity;
+  /** Permitted resolution lifecycle. */
   lifecycle: Lifecycle;
+  /** Local entry identifier used in the resolved configuration. */
   name: LocalId;
+  /** Whether a missing source is a configuration failure. */
   required: boolean;
+  /** Whether the entry is permitted in browser-safe projections. */
   visibility: "private" | "public";
 }>;
 
@@ -176,11 +202,13 @@ type ServerProjectionV2 = ProjectionBase &
     rules: readonly PresentTogetherRule[];
   }>;
 
+/** Compiled public or server projection accepted by process runtime helpers. */
 export type ProcessProjection =
   | PublicProjectionV1
   | ServerProjectionV1
   | ServerProjectionV2;
 
+/** Value-free reason produced when target validation or resolution fails. */
 export type CoreDiagnostic =
   | Readonly<{
       code: "ENV_CONTRACT_INVALID" | "ENV_FORMAT_UNSUPPORTED";
@@ -211,29 +239,46 @@ export type CoreDiagnostic =
       rule: LocalId;
     }>;
 
+/** Non-empty deterministic list of configuration diagnostics. */
 export type CoreDiagnostics = readonly [CoreDiagnostic, ...CoreDiagnostic[]];
 
+/** Failed configuration result containing value-free diagnostics. */
 export type AggregateFailure = Readonly<{
+  /** Non-empty validation or resolution failures. */
   diagnostics: CoreDiagnostics;
+  /** Discriminator for a failed result. */
   ok: false;
 }>;
 
+/** Successful configuration result. */
 export type Success<TValue> = Readonly<{
+  /** Discriminator for a successful result. */
   ok: true;
+  /** Resolved typed configuration. */
   value: TValue;
 }>;
 
+/** Non-throwing configuration outcome. */
 export type AggregateResult<TValue> = AggregateFailure | Success<TValue>;
 
+/** Frozen record of resolved application-owned configuration values. */
 export type OwnedConfiguration = Readonly<Record<string, unknown>>;
 
+/** Fully validated target representation used internally during resolution. */
 export type NormalizedTarget = Readonly<{
+  /** Entry-to-source bindings retained from generated target metadata. */
   bindings: readonly Readonly<{
+    /** Local selected entry identifier. */
     entry: LocalId;
+    /** Source property name. */
     source: RawSourceName;
   }>[];
+  /** Generated-module format identifier. */
   generated: "astilba.env.generated-module/v1";
+  /** Lifecycle carried by the generated target. */
   lifecycle: Lifecycle;
+  /** Validated public or server projection. */
   projection: ProcessProjection;
+  /** Entries selected after projection and binding validation. */
   selected: readonly (PublicProjectionEntry | ServerProjectionEntry)[];
 }>;

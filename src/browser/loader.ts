@@ -5,7 +5,9 @@ import type { BootstrapFailure, BootstrapFailureCode } from "./failure.ts";
 import { parseBootstrapJson } from "./json.ts";
 import type { JsonObject, JsonValue } from "./json.ts";
 
+/** Exact protocol identifier accepted by this browser bootstrap implementation. */
 export const BOOTSTRAP_PROTOCOL = "astilba.env.bootstrap/v1";
+/** Maximum UTF-8 source size accepted for one bootstrap envelope, in bytes. */
 export const MAXIMUM_BOOTSTRAP_BYTES = 65_536;
 
 const GENERATED_FIELDS = [
@@ -48,55 +50,82 @@ const REMAINING_REQUIRED_FIELDS = [
 ] as const;
 declare const projectionValues: unique symbol;
 
-export type BrowserAudience = Readonly<{ origin: string }>;
+/** Audience bound into a public bootstrap; `origin` is an ASCII serialised origin. */
+export type BrowserAudience = Readonly<{
+  /** Exact origin allowed to consume the public values. */
+  origin: string;
+}>;
+/** Record of decoded public values. Values are public data and must not contain secrets. */
 export type BrowserValues = Readonly<Record<string, unknown>>;
 
+/** Generated identity evidence for one browser-safe consumer projection. */
 export type BrowserProjection<TValues extends object = BrowserValues> =
   Readonly<{
+    /** Consumer identifier encoded by the generated projection. */
     consumer: string;
+    /** Contract identifier encoded by the generated projection. */
     contract: string;
+    /** Exact SHA-256 digest of the generated public projection. */
     digest: `sha256-${string}`;
+    /** Lifecycle accepted by this browser projection. */
     lifecycle: "deployment" | "request";
     [projectionValues]: TValues;
   }>;
 
+/** Public values after the complete bootstrap envelope has been validated. */
 export type ValidatedBootstrap<TValues extends object = BrowserValues> =
   Readonly<{
+    /** Audience proven by the envelope and matched against the expected audience. */
     audience: BrowserAudience;
+    /** Readonly decoded public values for the generated consumer. */
     values: Readonly<TValues>;
   }>;
 
+/** Options for same-origin network bootstrap delivery. */
 export type LoadBootstrapOptions<TValues extends object = BrowserValues> =
   Readonly<{
+    /** Same-origin endpoint from which to fetch the inert JSON envelope. */
     endpoint: string | URL;
+    /** Audience that must match the envelope and final response origin. */
     expectedAudience: BrowserAudience;
+    /** Fetch implementation to use; provide the browser's bound `fetch`. */
     fetch: typeof globalThis.fetch;
+    /** Generated projection imported from a browser-safe generated module. */
     projection: BrowserProjection<TValues>;
+    /** Base URL used to resolve `endpoint` and enforce same-origin delivery. */
     requestBaseUrl: string | URL;
   }>;
 
+/** Options for a framework-transported, safely escaped bootstrap envelope. */
 export type ParseBootstrapOptions<TValues extends object = BrowserValues> =
   Readonly<{
+    /** Audience that must match the inert envelope. */
     expectedAudience: BrowserAudience;
+    /** Generated projection imported from a browser-safe generated module. */
     projection: BrowserProjection<TValues>;
+    /** Unescaped JSON envelope string supplied by framework transport. */
     source: string;
   }>;
 
+/** Lazy application module started only after public bootstrap validation succeeds. */
 export type BrowserApplicationModule<
   Result = void,
   TValues extends object = BrowserValues,
 > = Readonly<{
+  /** Receives validated values and audience; may return synchronously or asynchronously. */
   start(
     values: Readonly<TValues>,
     audience: BrowserAudience
   ): Result | Promise<Result>;
 }>;
 
+/** Options for loading a bootstrap and then lazily starting an application module. */
 export type StartBrowserApplicationOptions<
   Result = void,
   TValues extends object = BrowserValues,
 > = LoadBootstrapOptions<TValues> &
   Readonly<{
+    /** Imports the application only after bootstrap validation succeeds. */
     importApplication: () => Promise<BrowserApplicationModule<Result, TValues>>;
   }>;
 
@@ -749,6 +778,13 @@ const decodeBody = (body: Uint8Array): string => {
   }
 };
 
+/**
+ * Fetches one same-origin JSON bootstrap, validates its transport and
+ * generated-projection identity, and returns readonly public values.
+ *
+ * Rejects with {@link BootstrapFailure} on malformed, redirected,
+ * cross-origin, oversized, or mismatched responses.
+ */
 export const loadBrowserBootstrap = async <const TValues extends object>(
   options: LoadBootstrapOptions<TValues>
 ): Promise<ValidatedBootstrap<TValues>> => {
@@ -765,6 +801,11 @@ export const loadBrowserBootstrap = async <const TValues extends object>(
   return parseSource<TValues>(source, projection, expectedOrigin);
 };
 
+/**
+ * Validates an already transported inert JSON bootstrap without performing a
+ * fetch. The caller must safely transport `source`; this API never executes
+ * it as JavaScript.
+ */
 export const parseBrowserBootstrap = <const TValues extends object>(
   options: ParseBootstrapOptions<TValues>
 ): ValidatedBootstrap<TValues> => {
@@ -778,6 +819,10 @@ export const parseBrowserBootstrap = <const TValues extends object>(
   return parseSource<TValues>(source, projection, expectedOrigin);
 };
 
+/**
+ * Loads a validated bootstrap, then lazily imports and starts an application.
+ * The application module is not imported when bootstrap validation fails.
+ */
 export const startBrowserApplication = async <
   Result = void,
   const TValues extends object = BrowserValues,

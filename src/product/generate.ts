@@ -156,10 +156,23 @@ const renderGeneratedDataProperty = (
 ): string =>
   `Object.defineProperty(${target}, ${sourceString(key)}, { enumerable: true, value: ${renderOwnedValue(value)} });`;
 
-const portableShapeType = (shape: PortableShapeDescriptor): string => {
+const renderDocumentation = (
+  indentation: string,
+  summary: string
+): readonly string[] =>
+  Object.freeze([
+    `${indentation}/**`,
+    `${indentation} * ${summary}`,
+    `${indentation} */`,
+  ]);
+
+const portableShapeType = (
+  shape: PortableShapeDescriptor,
+  indentation = ""
+): string => {
   switch (shape.kind) {
     case "array": {
-      return `readonly (${portableShapeType(shape.items)})[]`;
+      return `readonly (${portableShapeType(shape.items, indentation)})[]`;
     }
     case "boolean": {
       return "boolean";
@@ -168,12 +181,18 @@ const portableShapeType = (shape: PortableShapeDescriptor): string => {
       return "null";
     }
     case "object": {
-      return `{ ${shape.properties
-        .map(
-          (property) =>
-            `readonly ${sourceString(property.name)}${property.required ? "" : "?"}: ${portableShapeType(property.shape)};`
-        )
-        .join(" ")} }`;
+      const propertyIndentation = `${indentation}  `;
+      return [
+        "{",
+        ...shape.properties.flatMap((property) => [
+          ...renderDocumentation(
+            propertyIndentation,
+            "A resolved value in this JSON configuration entry."
+          ),
+          `${propertyIndentation}readonly ${sourceString(property.name)}${property.required ? "" : "?"}: ${portableShapeType(property.shape, propertyIndentation)};`,
+        ]),
+        `${indentation}}`,
+      ].join("\n");
     }
     case "safe-integer": {
       return "number";
@@ -184,17 +203,23 @@ const portableShapeType = (shape: PortableShapeDescriptor): string => {
   }
 };
 
-const opaqueShapeType = (shape: OpaqueShapeDescriptor): string =>
+const opaqueShapeType = (
+  shape: OpaqueShapeDescriptor,
+  indentation = ""
+): string =>
   shape.kind === "optional"
-    ? portableShapeType(shape.value)
-    : portableShapeType(shape);
+    ? portableShapeType(shape.value, indentation)
+    : portableShapeType(shape, indentation);
 
-const declaredOpaqueShapeType = (shape: OpaqueShapeDescriptor): string =>
+const declaredOpaqueShapeType = (
+  shape: OpaqueShapeDescriptor,
+  indentation = ""
+): string =>
   shape.kind === "optional"
-    ? `${portableShapeType(shape.value)} | undefined`
-    : portableShapeType(shape);
+    ? `${portableShapeType(shape.value, indentation)} | undefined`
+    : portableShapeType(shape, indentation);
 
-const outputType = (entry: GeneratedEntry): string => {
+const outputType = (entry: GeneratedEntry, indentation = ""): string => {
   switch (entry.codec.kind) {
     case "boolean": {
       return "boolean";
@@ -207,10 +232,10 @@ const outputType = (entry: GeneratedEntry): string => {
       return "number";
     }
     case "json": {
-      return portableShapeType(entry.codec.shape);
+      return portableShapeType(entry.codec.shape, indentation);
     }
     case "opaque": {
-      return opaqueShapeType(entry.codec.output);
+      return opaqueShapeType(entry.codec.output, indentation);
     }
     case "origin":
     case "string":
@@ -228,12 +253,22 @@ const renderConfigurationType = (
 ): string => {
   const properties = [...entries]
     .toSorted((left, right) => compareText(left.name, right.name))
-    .map(
-      (entry) =>
-        `  readonly ${sourceString(entry.name)}${entry.required ? "" : "?"}: ${outputType(entry)};`
-    )
+    .flatMap((entry) => [
+      ...renderDocumentation(
+        "  ",
+        "The resolved value for this configuration entry."
+      ),
+      `  readonly ${sourceString(entry.name)}${entry.required ? "" : "?"}: ${outputType(entry, "  ")};`,
+    ])
     .join("\n");
-  return `export interface Configuration {\n${properties}\n}`;
+  return [
+    "/**",
+    " * The resolved configuration values for this generated target.",
+    " */",
+    "export interface Configuration {",
+    properties,
+    "}",
+  ].join("\n");
 };
 
 const selectedOpaqueEntries = (
@@ -302,6 +337,9 @@ const renderSchemasType = (entries: readonly GeneratedEntry[]): string => {
     "      ? unknown",
     "      : { readonly __astilbaSchemaTypeMismatch: never }",
     "    : { readonly __astilbaSchemaMapMismatch: never };",
+    "/**",
+    " * The Standard Schema validators required by this generated target.",
+    " */",
     "export type Schemas<TSchemas extends __AstilbaSchemaCandidates> =",
     "  TSchemas & __AstilbaSchemaGate<TSchemas>;",
   ].join("\n");
@@ -339,11 +377,17 @@ const renderTargetModule = (input: {
       ];
   const operations = hasOpaque
     ? [
+        "/**",
+        " * Checks the configured sources against this target's contract.",
+        " */",
         "export const check = <const TSchemas extends __AstilbaSchemaCandidates>(",
         "  source: ProcessSource,",
         "  schemas: Schemas<TSchemas>,",
         ") => checkProcessTargetWithSchemas<Configuration>(definition, source, schemas);",
         "",
+        "/**",
+        " * Loads and validates the configured sources for this target.",
+        " */",
         "export const load = <const TSchemas extends __AstilbaSchemaCandidates>(",
         "  source: ProcessSource,",
         "  schemas: Schemas<TSchemas>,",
@@ -351,9 +395,15 @@ const renderTargetModule = (input: {
         "  loadProcessTargetWithSchemas<Configuration>(definition, source, schemas);",
       ]
     : [
+        "/**",
+        " * Checks the configured sources against this target's contract.",
+        " */",
         "export const check = (source: ProcessSource) =>",
         "  checkProcessTarget<Configuration>(definition, source);",
         "",
+        "/**",
+        " * Loads and validates the configured sources for this target.",
+        " */",
         "export const load = (source: ProcessSource): Configuration =>",
         "  loadProcessTarget<Configuration>(definition, source);",
       ];
@@ -771,6 +821,9 @@ const renderBrowserProjectionModule = (input: {
       "projectionAbi",
       "astilba.env.projection/v1"
     ),
+    "/**",
+    " * The validated public projection for this lifecycle.",
+    " */",
     "export const projection = Object.freeze(generatedProjection) as unknown as BrowserProjection<Configuration>;",
     "",
   ].join("\n");
@@ -784,6 +837,9 @@ const renderBrowserBuildModule = (
     "/* Generated by Astilba Env. Do not edit. */",
     renderConfigurationType(entries),
     "",
+    "/**",
+    " * The resolved public build-time configuration.",
+    " */",
     `export const configuration: Readonly<Configuration> = ${renderOwnedValue(configuration)} as Readonly<Configuration>;`,
     "",
   ].join("\n");
