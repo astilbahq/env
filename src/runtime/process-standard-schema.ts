@@ -6,6 +6,10 @@ import { aggregateFailure, diagnostic } from "./results.ts";
 import type { StandardSchemaV1 } from "./standard-schema.ts";
 import { validateProcessTarget, validateSchemaMap } from "./validation.ts";
 
+/**
+ * Application-owned Standard Schema validators keyed by opaque entry name.
+ * The keys must exactly match the opaque entries selected by the target.
+ */
 export type ProcessTargetSchemas = Readonly<
   Record<LocalId, StandardSchemaV1<unknown, unknown>>
 >;
@@ -37,6 +41,15 @@ const checkProcessTargetWithSchemasSync = <const TConfiguration extends object>(
   ) as AggregateResult<TConfiguration>;
 };
 
+/**
+ * Validates and resolves a generated process target using application-owned
+ * Standard Schema validators for its opaque entries in Node. Validators must
+ * return synchronously; a Promise or thenable produces
+ * `ENV_VALIDATOR_ASYNC_UNSUPPORTED`. The API is Promise-returning so every
+ * outcome settles uniformly. Under the `workerd` conditional export, schemas
+ * are not executed; opaque entries are rejected and only deployment targets
+ * are accepted.
+ */
 // oxlint-disable-next-line eslint/require-await -- Async is the frozen API guarantee that every outcome, including an unexpected throw, settles through a Promise.
 export const checkProcessTargetWithSchemas = async <
   const TConfiguration extends object,
@@ -51,6 +64,13 @@ export const checkProcessTargetWithSchemas = async <
     schemas
   );
 
+/**
+ * Resolves a target with Standard Schema validators or rejects with
+ * {@link EnvironmentConfigurationError} for invalid configuration. Validators
+ * must return synchronously; Promise and thenable validators produce
+ * `ENV_VALIDATOR_ASYNC_UNSUPPORTED`. Under the `workerd` conditional export,
+ * validators are unavailable and opaque entries are rejected.
+ */
 export const loadProcessTargetWithSchemas = async <
   const TConfiguration extends object,
 >(

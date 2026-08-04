@@ -2,28 +2,50 @@ import { copyOpaqueShapeValue } from "../core/shapes.ts";
 import type { JsonValue } from "../core/types.ts";
 import type { CodecDescriptor, OpaqueShape } from "./model.ts";
 
+/** Result shape returned by the Standard Schema v1 validation hook. */
 export type StandardSchemaResult<TOutput> =
   | Readonly<{
+      /** Non-empty or empty validator-provided issue payloads for invalid input. */
       issues: readonly unknown[];
+      /** Absent when validation fails. */
       value?: never;
     }>
   | Readonly<{
+      /** Omitted when validation succeeds. */
       issues?: undefined;
+      /** Validated output value. */
       value: TOutput;
     }>;
 
+/**
+ * Minimal Standard Schema v1 contract accepted for private opaque entries.
+ * Browser projections never include an opaque schema or its implementation.
+ * The protocol type permits promise results, but Env requires synchronous
+ * validation and rejects a Promise or thenable with
+ * `ENV_VALIDATOR_ASYNC_UNSUPPORTED`.
+ */
 export interface StandardSchemaV1<TInput = unknown, TOutput = TInput> {
+  /** Standard Schema capability record. */
   readonly "~standard": Readonly<{
+    /** Optional compile-time input/output type witness. */
     types?:
       | Readonly<{
+          /** Compile-time input type witness. */
           input: TInput;
+          /** Compile-time output type witness. */
           output: TOutput;
         }>
       | undefined;
+    /**
+     * Standard Schema validation hook. Env accepts only an immediate result;
+     * a Promise or thenable is rejected with `ENV_VALIDATOR_ASYNC_UNSUPPORTED`.
+     */
     validate(
       value: unknown
     ): Promise<StandardSchemaResult<TOutput>> | StandardSchemaResult<TOutput>;
+    /** Schema implementation identifier supplied by the owning library. */
     vendor: string;
+    /** Supported Standard Schema protocol version. */
     version: 1;
   }>;
 }

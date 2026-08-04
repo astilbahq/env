@@ -74,6 +74,12 @@ type PresentTogetherRule<TEntries extends readonly string[]> = Readonly<{
   [ruleBrand]: TEntries;
 }>;
 
+/**
+ * Opaque result of a successfully validated environment declaration.
+ *
+ * Keep this value in the module that declares the contract, then pass it to
+ * the compiler or CLI; its shape is intentionally not application data.
+ */
 export type EnvironmentDefinition = Readonly<{
   [environmentBrand]: true;
 }>;
@@ -96,90 +102,153 @@ type ValidateTargets<TEntries extends EntryRecord, TConsumers, TTargets> = {
 };
 
 type RequiredOptions<TRequired extends boolean> = Readonly<{
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
 type BooleanOptions<TRequired extends boolean> = Readonly<{
+  /** How an empty source is handled. Defaults to `"missing"`. */
   blank?: "invalid" | "missing";
+  /** Exact source text accepted as `false`. Defaults to `"false"`. */
   falseInput?: string;
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
+  /** Exact source text accepted as `true`. Defaults to `"true"`. */
   trueInput?: string;
 }>;
 
 type IntegerOptions<TRequired extends boolean> = Readonly<{
+  /** How an empty source is handled. Defaults to `"missing"`. */
   blank?: "invalid" | "missing";
+  /** Inclusive largest accepted integer. */
   maximum: number;
+  /** Inclusive smallest accepted integer. */
   minimum: number;
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
 type JsonOptions<TRequired extends boolean> = Readonly<{
+  /** How an empty source is handled. Defaults to `"missing"`. */
   blank?: "invalid" | "missing";
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
 type StringOptions<TRequired extends boolean> = Readonly<{
+  /** Inclusive maximum Unicode code-point count. Defaults to `65_535`. */
   maximumCodePoints?: number;
+  /** Inclusive minimum Unicode code-point count; omitted means zero. */
   minimumCodePoints?: number;
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
 type StringListOptions<TRequired extends boolean> = Readonly<{
+  /** Whether empty comma-separated items are discarded or rejected. Defaults to `"drop"`. */
   emptyItems?: "drop" | "invalid";
+  /** Inclusive maximum Unicode code-point count for each item. Defaults to `1_024`. */
   maximumItemCodePoints?: number;
+  /** Inclusive maximum number of items. Defaults to `64`. */
   maximumItems?: number;
+  /** Inclusive minimum Unicode code-point count for each non-empty item. Defaults to `1`. */
   minimumItemCodePoints?: number;
+  /** Inclusive minimum number of items. Defaults to `0`. */
   minimumItems?: number;
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
 type TextOptions<TRequired extends boolean> = Readonly<{
+  /** How an empty source is handled. Defaults to `"missing"`. */
   blank?: "invalid" | "missing";
+  /** Inclusive maximum Unicode code-point count. Defaults to `65_535`. */
   maximumCodePoints?: number;
+  /** Inclusive minimum Unicode code-point count. Defaults to `1`. */
   minimumCodePoints?: number;
+  /** Preserve source whitespace or trim it before validation. Defaults to `"preserve"`. */
   normalise?: "preserve" | "trim";
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
 type SecretOptions<TRequired extends boolean> = Readonly<{
+  /** How an empty source is handled. Defaults to `"missing"`. */
   blank?: "invalid" | "missing";
+  /** Inclusive maximum Unicode code-point count. Defaults to `65_535`. */
   maximumCodePoints?: number;
+  /** Inclusive minimum Unicode code-point count. Defaults to `1`. */
   minimumCodePoints?: number;
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
 }>;
 
+/** Declarative portable-JSON shape accepted by an `env.*.*.json` builder. */
 type PortableShape =
-  | Readonly<{ kind: "boolean" }>
-  | Readonly<{ kind: "null" }>
   | Readonly<{
+      /** Discriminator for a boolean value. */
+      kind: "boolean";
+    }>
+  | Readonly<{
+      /** Discriminator for a null value. */
+      kind: "null";
+    }>
+  | Readonly<{
+      /** Discriminator for a decimal safe integer. */
       kind: "safe-integer";
+      /** Inclusive largest accepted integer. */
       maximum: number;
+      /** Inclusive smallest accepted integer. */
       minimum: number;
     }>
-  | Readonly<{ kind: "string" }>
   | Readonly<{
+      /** Discriminator for a portable Unicode string. */
+      kind: "string";
+    }>
+  | Readonly<{
+      /** Shape of every array element. */
       items: PortableShape;
+      /** Discriminator for an array value. */
       kind: "array";
+      /** Inclusive largest permitted array length. */
       maximumItems: number;
+      /** Inclusive smallest permitted array length. */
       minimumItems: number;
     }>
   | Readonly<{
+      /** Discriminator for an object value. */
       kind: "object";
+      /** Object properties; each name must be unique. */
       properties: readonly Readonly<{
+        /** Property name in the decoded object. */
         name: string;
+        /** Whether this property must be present. */
         required: boolean;
+        /** Shape used to validate this property's value. */
         shape: PortableShape;
       }>[];
     }>;
 
+/** Portable output shape accepted by private opaque entry declarations. */
 type OpaqueShape =
   | PortableShape
-  | Readonly<{ kind: "optional"; value: PortableShape }>;
-
-type OpaqueInputShape =
-  | Extract<PortableShape, { kind: "string" }>
   | Readonly<{
+      /** Discriminator for an optional output value. */
       kind: "optional";
+      /** Shape of the value when it is present. */
+      value: PortableShape;
+    }>;
+
+/** Limited input shape accepted before a private opaque validator runs. */
+type OpaqueInputShape =
+  | Readonly<{
+      /** Discriminator for a required raw string input. */
+      kind: "string";
+    }>
+  | Readonly<{
+      /** Discriminator for an optional raw string input. */
+      kind: "optional";
+      /** Required-string shape when the raw input is present. */
       value: Extract<PortableShape, { kind: "string" }>;
     }>;
 
@@ -245,10 +314,15 @@ type OpaqueOptions<
   TOutput extends OpaqueShape,
   TRequired extends boolean,
 > = Readonly<{
+  /** Portable input shape accepted before the private validator runs. */
   input: TInput;
+  /** Portable output shape produced by the private validator. */
   output: TOutput;
+  /** Whether the source must be present. Defaults to `true`. */
   required?: TRequired;
+  /** Application-owned identifier for the validator implementation revision. */
   revision: string;
+  /** Application-owned description of the validator semantics. */
   semantics: string;
 }>;
 
@@ -256,9 +330,11 @@ type EntryBuilder<
   TVisibility extends Visibility,
   TLifecycle extends Lifecycle,
 > = Readonly<{
+  /** Declares an exact-text boolean entry. */
   boolean<const TRequired extends boolean = true>(
     options?: BooleanOptions<TRequired>
   ): Entry<boolean, TRequired, TVisibility, TLifecycle, "boolean">;
+  /** Declares an entry constrained to one of the supplied literal strings. */
   enum<
     const TValues extends readonly string[],
     const TRequired extends boolean = true,
@@ -266,9 +342,11 @@ type EntryBuilder<
     values: TValues,
     options?: RequiredOptions<TRequired>
   ): Entry<TValues[number], TRequired, TVisibility, TLifecycle, "enum">;
+  /** Declares an integer entry with inclusive bounds; browser consumers cannot select it. */
   integer<const TRequired extends boolean = true>(
     options: IntegerOptions<TRequired>
   ): Entry<number, TRequired, TVisibility, TLifecycle, "integer">;
+  /** Declares an exact portable-JSON entry with a serialisable shape. */
   json<
     const TShape extends PortableShape,
     const TRequired extends boolean = true,
@@ -282,15 +360,19 @@ type EntryBuilder<
     TLifecycle,
     "json"
   >;
+  /** Declares an ASCII serialised-origin entry. */
   origin<const TRequired extends boolean = true>(
     options?: RequiredOptions<TRequired>
   ): Entry<string, TRequired, TVisibility, TLifecycle, "origin">;
+  /** Declares a decimal safe-integer entry with inclusive bounds. */
   safeInteger<const TRequired extends boolean = true>(
     options: IntegerOptions<TRequired>
   ): Entry<number, TRequired, TVisibility, TLifecycle, "safe-integer">;
+  /** Declares a Unicode string entry measured in code points. */
   string<const TRequired extends boolean = true>(
     options?: StringOptions<TRequired>
   ): Entry<string, TRequired, TVisibility, TLifecycle, "string">;
+  /** Declares a comma-separated list of Unicode string items. */
   stringList<const TRequired extends boolean = true>(
     options?: StringListOptions<TRequired>
   ): Entry<
@@ -300,6 +382,7 @@ type EntryBuilder<
     TLifecycle,
     "string-list"
   >;
+  /** Declares a text entry, optionally normalising whitespace; browser consumers cannot select it. */
   text<const TRequired extends boolean = true>(
     options?: TextOptions<TRequired>
   ): Entry<string, TRequired, TVisibility, TLifecycle, "text">;
@@ -308,6 +391,10 @@ type EntryBuilder<
 type PrivateEntryBuilder<TLifecycle extends "deployment" | "request"> =
   EntryBuilder<"private", TLifecycle> &
     Readonly<{
+      /**
+       * Declares a private entry validated by an application-owned Standard
+       * Schema implementation. Opaque validation is never browser-safe.
+       */
       /* oxlint-disable typescript/no-unnecessary-type-parameters -- This frozen public generic keeps the opaque input shape exact even though only the output shape is projected into the branded result. */
       opaque<
         const TInput extends OpaqueInputShape,
@@ -323,13 +410,16 @@ type PrivateEntryBuilder<TLifecycle extends "deployment" | "request"> =
         "opaque"
       >;
       /* oxlint-enable typescript/no-unnecessary-type-parameters */
+      /** Declares a private text entry intended for confidential values. */
       secret<const TRequired extends boolean = true>(
         options?: SecretOptions<TRequired>
       ): Entry<string, TRequired, "private", TLifecycle, "text">;
     }>;
 
 interface ConsumerBuilder<TKind extends ConsumerKind> {
+  /** Selects every compatible entry for this consumer. */
   (): Consumer<TKind, null>;
+  /** Selects exactly these entry names for this consumer. */
   <const TEntries extends readonly string[]>(
     entries: TEntries
   ): Consumer<TKind, TEntries>;
@@ -1367,12 +1457,26 @@ const together = <const TEntries extends readonly string[]>(
   );
 };
 
+/**
+ * Declarative builders for environment entries, consumers, process targets,
+ * and cross-entry rules. Builders are inert until passed to
+ * {@link defineEnvironment}; they never read configuration values.
+ */
 export const env: Readonly<{
+  /** Declares a browser consumer, which can select only public entries. */
   browser: ConsumerBuilder<"browser">;
+  /** Private deployment- and request-lifecycle entry builders. */
   private: Readonly<{
+    /** Declares private values resolved once for a deployment or process. */
     deployment: PrivateEntryBuilder<"deployment">;
+    /** Declares private values resolved from explicit request context. */
     request: PrivateEntryBuilder<"request">;
   }>;
+  /**
+   * Maps selected consumer entry names to raw process-source names. A target
+   * must bind at least one entry; bindings are checked against its consumer
+   * when the environment is defined.
+   */
   process: <
     const TConsumer extends string,
     const TBindings extends Readonly<Record<string, string>>,
@@ -1380,12 +1484,18 @@ export const env: Readonly<{
     consumer: TConsumer,
     bindings: TBindings
   ) => ProcessTarget<TConsumer, TBindings>;
+  /** Public entry builders grouped by the lifecycle in which values resolve. */
   public: Readonly<{
+    /** Public values deliberately embedded while creating an artifact. */
     build: EntryBuilder<"public", "build">;
+    /** Public values delivered after build, without changing artifact bytes. */
     deployment: EntryBuilder<"public", "deployment">;
+    /** Public values resolved from explicit request context. */
     request: EntryBuilder<"public", "request">;
   }>;
+  /** Declares a server consumer, which may select public and private entries. */
   server: ConsumerBuilder<"server">;
+  /** Requires two or more entries to be present or absent together. */
   together: <const TEntries extends readonly string[]>(
     id: string,
     entries: TEntries
@@ -1673,6 +1783,13 @@ const freezeRecord = <TValue>(
   return Object.freeze(result);
 };
 
+/**
+ * Validates and brands one complete declarative environment contract.
+ *
+ * This throws `TypeError` for invalid identifiers, unknown selections,
+ * inconsistent lifecycles, or malformed builder products. It reads no
+ * environment sources and does not resolve secrets.
+ */
 export function defineEnvironment<
   const TEntries extends EntryRecord,
   const TConsumers extends Readonly<
@@ -1689,12 +1806,17 @@ export function defineEnvironment<
   >,
 >(
   declaration: Readonly<{
+    /** Named consumer declarations built with {@link env.browser} or {@link env.server}. */
     consumers: TConsumers;
+    /** Named entry declarations built from one lifecycle and visibility builder. */
     entries: TEntries;
+    /** Reverse-DNS identifier for the complete environment contract. */
     id: string;
+    /** Optional present-together rules over declared entry names. */
     rules?: readonly PresentTogetherRule<
       readonly (keyof TEntries & string)[]
     >[];
+    /** Named process-source bindings for declared consumers. */
     targets: TTargets & ValidateTargets<TEntries, TConsumers, TTargets>;
   }>
 ): EnvironmentDefinition {

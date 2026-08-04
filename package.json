@@ -72,7 +72,7 @@
     "verify:artifact": "node scripts/verify-artifact.mjs",
     "verify:filesystem-containment": "node scripts/verify-filesystem-containment.mjs",
     "verify:tools": "node scripts/verify-tools.mjs",
-    "verify": "pnpm verify:tools && pnpm verify:filesystem-containment && pnpm typecheck && pnpm typecheck:ts7 && pnpm test:run && pnpm build && node scripts/verify-package.mjs"
+    "verify": "pnpm verify:tools && pnpm verify:filesystem-containment && pnpm typecheck && pnpm typecheck:ts7 && pnpm test:run && pnpm build && node scripts/verify-public-tsdoc.mjs && node scripts/verify-package.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.4",
