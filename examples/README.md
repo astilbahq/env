@@ -1,6 +1,6 @@
 # Astilba Env public examples
 
-These are four self-contained applications that consume exact registry `@astilba/env@0.2.2`. They deliberately do not use the source checkout, workspace links, archives, or a shared application layer.
+These are four self-contained applications that consume exact registry `@astilba/env@0.2.3`. They deliberately do not use the source checkout, workspace links, archives, or a shared application layer.
 
 ```sh
 pnpm install --frozen-lockfile

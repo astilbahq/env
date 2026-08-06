@@ -11,7 +11,7 @@
     "start:example": "cross-env NEXT_LABEL=local-label NEXT_SERVICE_TOKEN=next-server-only-value next start"
   },
   "dependencies": {
-    "@astilba/env": "0.2.2",
+    "@astilba/env": "0.2.3",
     "next": "16.2.12",
     "react": "19.2.8",
     "react-dom": "19.2.8"

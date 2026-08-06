@@ -9,7 +9,7 @@
     "start": "wrangler dev --local --port 8787"
   },
   "dependencies": {
-    "@astilba/env": "0.2.2"
+    "@astilba/env": "0.2.3"
   },
   "devDependencies": {
     "wrangler": "4.115.0"

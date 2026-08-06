@@ -9,10 +9,10 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const REGISTRY = "https://registry.npmjs.org/@astilba/env/-/env-0.2.2.tgz";
+const REGISTRY = "https://registry.npmjs.org/@astilba/env/-/env-0.2.3.tgz";
 const INTEGRITY =
-  "sha512-B6UaBdrKPRPvwNzo5CIhWtBiZjijxxAObj62TIA8Z52HBwVYyy//IjcxVNe2e+TUvmh0cFsg2WzvCBHrOylrng==";
-const VERSION = "0.2.2";
+  "sha512-mjAXvvSBzHp2jZlEP8jytUuyIP3xPNpDtrdL7vh1NY02L20/jkxEWw01fiDVJCgWISNVU3RvzhswYwcHWxJS0A==";
+const VERSION = "0.2.3";
 const NEXT_PRIVATE_BINDING = "NEXT_SERVICE_TOKEN";
 const NEXT_PRIVATE_NAME = "serviceToken";
 const NEXT_PRIVATE_VALUE = "next-server-only-value";
