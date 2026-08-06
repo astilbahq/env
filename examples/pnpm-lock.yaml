@@ -16,8 +16,8 @@ importers:
   cloudflare-worker:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.2.3
+        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
     devDependencies:
       wrangler:
         specifier: 4.115.0
@@ -26,8 +26,8 @@ importers:
   next-static-shell:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.2.3
+        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
       next:
         specifier: 16.2.12
         version: 16.2.12(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -57,14 +57,14 @@ importers:
   node-service:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.2.3
+        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
 
   vite:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.2
-        version: 0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.2.3
+        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
     devDependencies:
       cross-env:
         specifier: 10.1.0
@@ -75,8 +75,8 @@ importers:
 
 packages:
 
-  '@astilba/env@0.2.2':
-    resolution: {integrity: sha512-B6UaBdrKPRPvwNzo5CIhWtBiZjijxxAObj62TIA8Z52HBwVYyy//IjcxVNe2e+TUvmh0cFsg2WzvCBHrOylrng==}
+  '@astilba/env@0.2.3':
+    resolution: {integrity: sha512-mjAXvvSBzHp2jZlEP8jytUuyIP3xPNpDtrdL7vh1NY02L20/jkxEWw01fiDVJCgWISNVU3RvzhswYwcHWxJS0A==}
     engines: {node: '>=22.14.0 <23.0.0 || >=24.0.0 <25.0.0 || >=26.0.0 <27.0.0'}
     hasBin: true
     peerDependencies:
@@ -1187,7 +1187,7 @@ packages:
 
 snapshots:
 
-  '@astilba/env@0.2.2(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))':
+  '@astilba/env@0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))':
     optionalDependencies:
       vite: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)
 
