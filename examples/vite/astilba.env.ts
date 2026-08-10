@@ -2,6 +2,7 @@ import { defineEnvironment, env } from "@astilba/env";
 
 export default defineEnvironment({
   consumers: {
+    bootstrap: env.server(["browserOrigin", "label"]),
     browser: env.browser(["appName", "label"]),
     server: env.server(),
   },
@@ -15,6 +16,10 @@ export default defineEnvironment({
   targets: {
     browserBuild: env.process("browser", { appName: "VITE_APP_NAME" }),
     browserDeployment: env.process("browser", { label: "VITE_LABEL" }),
+    bootstrapDeployment: env.process("bootstrap", {
+      browserOrigin: "VITE_PUBLIC_ORIGIN",
+      label: "VITE_LABEL",
+    }),
     serverDeployment: env.process("server", {
       browserOrigin: "VITE_PUBLIC_ORIGIN",
       label: "VITE_LABEL",
