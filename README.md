@@ -49,6 +49,36 @@ astilba-env generate --check
 
 Generated server modules expose typed `check` and `load` operations. Generated browser modules expose only the selected public projection; private names, codecs, bindings, values, and full-contract metadata do not enter the browser graph.
 
+## Inventory and name drift
+
+The CLI can compile a deterministic, value-free name inventory for one process target:
+
+```sh
+astilba-env inventory export --target serverDeployment
+```
+
+The document contains logical entry IDs, bound names, lifecycle, visibility, and required presence. It contains no configuration values and makes no provider-kind claim. Without `--json`, the command writes the canonical `astilba.env.contract-inventory/v1` document to stdout; `--json` wraps it in the versioned CLI response.
+
+Provider tooling stays outside Env. Convert a provider's name-only list into the strict observed form before checking it:
+
+```json
+{
+  "entries": [{ "name": "DATABASE_URL" }],
+  "format": "astilba.env.observed-name-inventory/v1"
+}
+```
+
+```sh
+astilba-env inventory check \
+  --target serverDeployment \
+  --observed ./observed-names.json \
+  --ownership closed
+```
+
+`open` ownership is the default; unexpected names are reported without failing. `closed` ownership is always explicit and makes unexpected names fail. A missing required name fails in either mode; a missing optional name is reported without failing. Exit `0` means the name inventory is acceptable, exit `1` means drift or invalid evidence, and exit `2` is reserved for command-line misuse.
+
+Inventory checks prove name presence only. They do not inspect values, verify that a provider stored a value as a secret, move configuration, infer namespace ownership, or turn `required: false` into warning severity. Keep provider conversion, routing, sync, prune, warning policy, and all values application-owned. Bound names remain sensitive operational metadata; do not upload inventory files as CI artefacts by default.
+
 ## Package boundaries
 
 - `@astilba/env` provides declaration builders;

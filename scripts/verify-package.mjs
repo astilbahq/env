@@ -126,6 +126,7 @@ const expectedDistFiles = sortedStrings([
   "core/types.js",
   "index.d.ts",
   "index.js",
+  "inventory/contract-inventory.js",
   "planning/plan.d.ts",
   "planning/plan.js",
   "planning/snapshot.js",

@@ -5,7 +5,8 @@ import {
   spawn,
   spawnSync,
 } from "node:child_process";
-import { lstat, readFile, realpath } from "node:fs/promises";
+import { constants as fileConstants } from "node:fs";
+import { lstat, open, readFile, realpath } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -26,6 +27,15 @@ import type {
   JsonValue,
   ResolutionBinding,
 } from "../core/index.ts";
+import {
+  checkContractInventory,
+  compileContractInventory,
+  InventoryFailure,
+} from "../inventory/index.ts";
+import type {
+  InventoryFailureCode,
+  InventoryOwnership,
+} from "../inventory/index.ts";
 import {
   createPlanningSnapshot,
   decodePlanningSnapshotBytes,
@@ -52,6 +62,7 @@ import type { ProcessTargetDefinition } from "../runtime/index.ts";
 // oxlint-disable-next-line typescript/strict-void-return -- Node's promisify overload returns a value by design.
 const execFile = promisify(execFileCallback);
 const MAXIMUM_SERIAL_BYTES = 8_388_608;
+const MAXIMUM_OBSERVED_INVENTORY_BYTES = 1_048_576;
 const SERIAL_LIMITS = Object.freeze({
   maximumArrayItems: 65_536,
   maximumBytes: MAXIMUM_SERIAL_BYTES,
@@ -60,13 +71,23 @@ const SERIAL_LIMITS = Object.freeze({
   maximumObjectKeys: 262_144,
   maximumStringBytes: 1_048_576,
 });
+const OBSERVED_INVENTORY_LIMITS = Object.freeze({
+  maximumArrayItems: 2048,
+  maximumBytes: MAXIMUM_OBSERVED_INVENTORY_BYTES,
+  maximumContainerItems: 8192,
+  maximumDepth: 4,
+  maximumObjectKeys: 8192,
+  maximumStringBytes: 1024,
+});
 
-type Command = "check" | "generate" | "plan";
+type Command = "check" | "generate" | "inventory" | "plan";
+type InventoryOperation = "check" | "export";
 type CliErrorCode =
   | "ENV_COMMAND_FAILED"
   | "ENV_GENERATED_FORMAT_UNSUPPORTED"
   | "ENV_GENERATED_INVALID"
   | "ENV_GENERATED_STALE"
+  | InventoryFailureCode
   | "ENV_PLANNING_FORMAT_UNSUPPORTED"
   | "ENV_PLANNING_INVALID"
   | "ENV_USAGE";
@@ -76,7 +97,10 @@ type ParsedArguments = Readonly<{
   checkGenerated: boolean;
   command: Command;
   config?: string;
+  inventoryOperation?: InventoryOperation;
   json: boolean;
+  observed?: string;
+  ownership: InventoryOwnership;
   target?: string;
 }>;
 
@@ -128,6 +152,21 @@ const fixedMessage = (code: CliErrorCode): string => {
     case "ENV_GENERATED_STALE": {
       return "Astilba Env generated output is stale.";
     }
+    case "ENV_INVENTORY_INVALID": {
+      return "Astilba Env contract inventory is invalid.";
+    }
+    case "ENV_INVENTORY_TARGET_UNKNOWN": {
+      return "Astilba Env inventory target is unknown.";
+    }
+    case "ENV_INVENTORY_TARGET_UNSUPPORTED": {
+      return "Astilba Env inventory target is unsupported.";
+    }
+    case "ENV_OBSERVED_INVALID": {
+      return "Astilba Env observed inventory is invalid.";
+    }
+    case "ENV_OBSERVED_UNSUPPORTED": {
+      return "Astilba Env observed inventory format is unsupported.";
+    }
     case "ENV_PLANNING_FORMAT_UNSUPPORTED": {
       return "Astilba Env planning snapshot format is unsupported.";
     }
@@ -149,7 +188,12 @@ const operationFailure = (): never => {
 };
 
 const commandFromToken = (value: string | undefined): Command | null =>
-  value === "check" || value === "generate" || value === "plan" ? value : null;
+  value === "check" ||
+  value === "generate" ||
+  value === "inventory" ||
+  value === "plan"
+    ? value
+    : null;
 
 const requireValue = (arguments_: readonly string[], index: number): string => {
   const value = arguments_[index + 1];
@@ -177,14 +221,25 @@ const parseArguments = (arguments_: readonly string[]): ParsedArguments => {
   if (command === null) {
     return usageFailure();
   }
+  const operationToken = command === "inventory" ? arguments_[1] : undefined;
+  const inventoryOperation: InventoryOperation | undefined =
+    operationToken === "check" || operationToken === "export"
+      ? operationToken
+      : undefined;
+  if (command === "inventory" && inventoryOperation === undefined) {
+    return usageFailure();
+  }
 
   const seen = new Set<string>();
   let base: string | undefined;
   let checkGenerated = false;
   let config: string | undefined;
   let json = false;
+  let observed: string | undefined;
+  let ownership: InventoryOwnership = "open";
   let target: string | undefined;
-  for (let index = 1; index < arguments_.length; index += 1) {
+  const firstOptionIndex = command === "inventory" ? 2 : 1;
+  for (let index = firstOptionIndex; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
     if (
       argument === undefined ||
@@ -221,8 +276,28 @@ const parseArguments = (arguments_: readonly string[]): ParsedArguments => {
         json = true;
         break;
       }
+      case "--observed": {
+        if (command !== "inventory" || inventoryOperation !== "check") {
+          return usageFailure();
+        }
+        observed = requireValue(arguments_, index);
+        index += 1;
+        break;
+      }
+      case "--ownership": {
+        if (command !== "inventory" || inventoryOperation !== "check") {
+          return usageFailure();
+        }
+        const value = requireValue(arguments_, index);
+        if (value !== "closed" && value !== "open") {
+          return usageFailure();
+        }
+        ownership = value;
+        index += 1;
+        break;
+      }
       case "--target": {
-        if (command !== "check") {
+        if (command !== "check" && command !== "inventory") {
           return usageFailure();
         }
         target = requireValue(arguments_, index);
@@ -237,8 +312,13 @@ const parseArguments = (arguments_: readonly string[]): ParsedArguments => {
 
   const configurationPath = config ?? "astilba.env.ts";
   validateConfigurationExtension(configurationPath);
-  if (command === "check") {
+  if (command === "check" || command === "inventory") {
     if (target === undefined || !isLocalId(target)) {
+      return usageFailure();
+    }
+  }
+  if (command === "inventory" && inventoryOperation === "check") {
+    if (observed === undefined || observed.length === 0) {
       return usageFailure();
     }
   }
@@ -254,7 +334,10 @@ const parseArguments = (arguments_: readonly string[]): ParsedArguments => {
     checkGenerated,
     command,
     ...(config === undefined ? {} : { config }),
+    ...(inventoryOperation === undefined ? {} : { inventoryOperation }),
     json,
+    ...(observed === undefined ? {} : { observed }),
+    ownership,
     ...(target === undefined ? {} : { target }),
   });
 };
@@ -864,6 +947,123 @@ const readHistoricalSnapshot = async (
   }
 };
 
+const readObservedInventory = async (
+  cwd: string,
+  requestedPath: string
+): Promise<JsonValue> => {
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    const path = resolve(cwd, requestedPath);
+    const noFollowFlag =
+      typeof fileConstants.O_NOFOLLOW === "number"
+        ? fileConstants.O_NOFOLLOW
+        : 0;
+    handle = await open(path, fileConstants.O_RDONLY + noFollowFlag);
+    const [metadata, pathMetadata] = await Promise.all([
+      handle.stat(),
+      lstat(path),
+    ]);
+    if (
+      !metadata.isFile() ||
+      pathMetadata.isSymbolicLink() ||
+      pathMetadata.dev !== metadata.dev ||
+      pathMetadata.ino !== metadata.ino ||
+      metadata.size > MAXIMUM_OBSERVED_INVENTORY_BYTES
+    ) {
+      throw new TypeError("Observed inventory file is invalid.");
+    }
+    const buffer = new Uint8Array(MAXIMUM_OBSERVED_INVENTORY_BYTES + 1);
+    let byteLength = 0;
+    while (byteLength < buffer.byteLength) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        byteLength,
+        buffer.byteLength - byteLength,
+        byteLength
+      );
+      if (bytesRead === 0) {
+        break;
+      }
+      byteLength += bytesRead;
+    }
+    if (byteLength > MAXIMUM_OBSERVED_INVENTORY_BYTES) {
+      throw new TypeError("Observed inventory file is invalid.");
+    }
+    const source = new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(buffer.subarray(0, byteLength));
+    return parseBoundedJsonValue(source, OBSERVED_INVENTORY_LIMITS);
+  } catch {
+    throw new CliFailure("ENV_OBSERVED_INVALID", 1);
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
+};
+
+const renderInventoryCheckReport = (
+  report: ReturnType<typeof checkContractInventory>
+): string => {
+  let summary = "Astilba Env inventory drift was found";
+  if (report.pass) {
+    summary =
+      report.issues.length === 0
+        ? "Astilba Env inventory is conformant"
+        : "Astilba Env inventory is conformant with notices";
+  }
+  const lines = [`${summary} (ownership: ${report.ownership}).`];
+  for (const issue of report.issues) {
+    lines.push(
+      `${issue.code}: ${issue.name}${
+        issue.entry === null ? "" : ` (${issue.entry})`
+      }`
+    );
+  }
+  return `${lines.join("\n")}\n`;
+};
+
+const inventoryCommand = async (
+  compilation: ProductCompilation,
+  parsed: ParsedArguments,
+  io: CliIo
+): Promise<number> => {
+  if (parsed.inventoryOperation === undefined || parsed.target === undefined) {
+    return operationFailure();
+  }
+  const inventory = compileContractInventory(compilation, parsed.target);
+  if (parsed.inventoryOperation === "export") {
+    if (parsed.json) {
+      writeJson(io, {
+        command: "inventory",
+        format: "astilba.env.cli.inventory/v1",
+        inventory,
+        ok: true,
+        operation: "export",
+      });
+    } else {
+      writeJson(io, inventory);
+    }
+    return 0;
+  }
+  if (parsed.observed === undefined) {
+    return operationFailure();
+  }
+  const observed = await readObservedInventory(io.cwd, parsed.observed);
+  const report = checkContractInventory(inventory, observed, parsed.ownership);
+  if (parsed.json) {
+    writeJson(io, {
+      command: "inventory",
+      format: "astilba.env.cli.inventory/v1",
+      ok: report.pass,
+      operation: "check",
+      report,
+    });
+  } else {
+    io.stdout.write(renderInventoryCheckReport(report));
+  }
+  return report.pass ? 0 : 1;
+};
+
 const checkCommand = (
   compilation: ProductCompilation,
   targetId: string,
@@ -1018,6 +1218,9 @@ const mappedFailure = (error: unknown): CliFailure => {
   if (error instanceof GeneratedDirectoryFailure) {
     return new CliFailure(error.code, 1);
   }
+  if (error instanceof InventoryFailure) {
+    return new CliFailure(error.code, 1);
+  }
   return new CliFailure("ENV_COMMAND_FAILED", 1);
 };
 
@@ -1093,6 +1296,10 @@ export const runCli = async (
           io,
           useAmbientEnvironment
         );
+      }
+      case "inventory": {
+        const compilation = await compile(configuration.path);
+        return await inventoryCommand(compilation, parsed, io);
       }
       case "plan": {
         if (parsed.base === undefined) {
