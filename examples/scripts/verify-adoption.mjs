@@ -167,7 +167,20 @@ const fetchWithRawHost = async (url, host) =>
         body += chunk;
       });
       response.on("end", () => {
-        resolve_(new Response(body, { status: response.statusCode ?? 500 }));
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          for (const item of Array.isArray(value) ? value : [value]) {
+            if (item !== undefined) {
+              headers.append(name, item);
+            }
+          }
+        }
+        resolve_(
+          new Response(body, {
+            headers,
+            status: response.statusCode ?? 500,
+          })
+        );
       });
     });
     request.on("error", reject);
@@ -274,6 +287,17 @@ const assertResponse = async (response, status, code) => {
   }
 };
 
+/** @param {Response} response @param {number} status @param {string} code */
+const assertBootstrapErrorResponse = async (response, status, code) => {
+  if (
+    response.headers.get("cache-control") !== "private, no-store" ||
+    !response.headers.get("content-type")?.startsWith("application/json")
+  ) {
+    fail("Browser bootstrap error response is cacheable or not JSON.");
+  }
+  await assertResponse(response, status, code);
+};
+
 const verifyNode = async () => {
   const cwd = resolve(ROOT, "node-service");
   /** @type {readonly (readonly [string | undefined, string])[]} */
@@ -371,31 +395,101 @@ const verifyNext = async () => {
     NEXT_PRIVATE_VALUE,
   ];
   await scan(staticRoot, privateMarkers);
-  /** @param {string} label @param {boolean} [exampleScript] */
-  const readProfile = async (label, exampleScript = false) => {
+  /** @param {string} label @param {string} [configuredOrigin] @param {boolean} [exampleScript] */
+  const readProfile = async (
+    label,
+    configuredOrigin,
+    exampleScript = false
+  ) => {
     const child = exampleScript
       ? start("pnpm", ["start:example"], cwd, { PORT: "3103" })
       : start("pnpm", ["exec", "next", "start", "--port", "3103"], cwd, {
+          NEXT_CANONICAL_ORIGIN: configuredOrigin,
           NEXT_LABEL: label,
-          NEXT_SERVICE_TOKEN: NEXT_PRIVATE_VALUE,
         });
     try {
       const response = await fetchReady("http://localhost:3103/api/env", child);
       const body = await response.text();
       if (
         !response.ok ||
+        response.headers.get("cache-control") !== "private, no-store" ||
+        !response.headers.get("content-type")?.startsWith("application/json") ||
         body.includes("NEXT_LABEL") ||
         privateMarkers.some((marker) => body.includes(marker))
       ) {
         fail("Next bootstrap response contains non-public material.");
       }
+      run(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          "--input-type=module",
+          "--eval",
+          'import { parseBrowserBootstrap } from "@astilba/env/browser"; import { projection } from "./.astilba/env/browser/browser.deployment.ts"; const parsed = parseBrowserBootstrap({ expectedAudience: { origin: process.env.ASTILBA_EXAMPLE_EXPECTED_ORIGIN }, projection, source: process.env.ASTILBA_EXAMPLE_ENVELOPE }); if (parsed.values.label !== process.env.ASTILBA_EXAMPLE_EXPECTED_LABEL) throw new Error("Next bootstrap value mismatch.");',
+        ],
+        cwd,
+        {
+          ASTILBA_EXAMPLE_ENVELOPE: body,
+          ASTILBA_EXAMPLE_EXPECTED_LABEL: label,
+          ASTILBA_EXAMPLE_EXPECTED_ORIGIN:
+            configuredOrigin === undefined
+              ? "http://localhost:3103"
+              : new URL(configuredOrigin).origin,
+        }
+      );
       return body;
     } finally {
       await stop(child);
     }
   };
-  const alpha = await readProfile("local-label", true);
+  const alpha = await readProfile("local-label", undefined, true);
   const beta = await readProfile("beta");
+  await readProfile("configured", "https://next.example.com:443/");
+  const hostileHostChild = start(
+    "pnpm",
+    ["exec", "next", "start", "--port", "3103"],
+    cwd,
+    {
+      NEXT_CANONICAL_ORIGIN: "https://next.example.com",
+      NEXT_LABEL: "hostile-host",
+    }
+  );
+  try {
+    await fetchReady("http://localhost:3103", hostileHostChild);
+    const response = await fetchWithRawHost(
+      "http://127.0.0.1:3103/api/env",
+      "example.test"
+    );
+    const body = await response.text();
+    const envelope = JSON.parse(body);
+    if (
+      !response.ok ||
+      response.headers.get("cache-control") !== "private, no-store" ||
+      !isRecord(envelope) ||
+      !isRecord(envelope.audience) ||
+      envelope.audience.origin !== "https://next.example.com" ||
+      body.includes("example.test")
+    ) {
+      fail("Next bootstrap trusted a request host over its canonical origin.");
+    }
+  } finally {
+    await stop(hostileHostChild);
+  }
+  const missingLabelChild = start(
+    "pnpm",
+    ["exec", "next", "start", "--port", "3103"],
+    cwd,
+    {}
+  );
+  try {
+    await assertBootstrapErrorResponse(
+      await fetchReady("http://localhost:3103/api/env", missingLabelChild),
+      500,
+      "ENV_MISSING_VALUE"
+    );
+  } finally {
+    await stop(missingLabelChild);
+  }
   if (alpha === beta || initial !== (await digestTree(staticRoot))) {
     fail("One Next build was not reused unchanged across deployment profiles.");
   }
@@ -448,7 +542,6 @@ const verifyVite = async () => {
       PORT: "4173",
       VITE_PUBLIC_ORIGIN: undefined,
       VITE_LABEL: "asset-check",
-      VITE_SERVICE_TOKEN: "server-only",
     }
   );
   try {
@@ -513,7 +606,6 @@ const verifyVite = async () => {
             PORT: "4173",
             VITE_LABEL: label,
             VITE_PUBLIC_ORIGIN: configuredOrigin,
-            VITE_SERVICE_TOKEN: "kept-on-server",
           }
         );
     try {
@@ -521,6 +613,8 @@ const verifyVite = async () => {
       const body = await response.text();
       if (
         !response.ok ||
+        response.headers.get("cache-control") !== "private, no-store" ||
+        !response.headers.get("content-type")?.startsWith("application/json") ||
         body.includes("kept-on-server") ||
         body.includes("serviceToken")
       ) {
@@ -568,7 +662,6 @@ const verifyVite = async () => {
       PORT: "4173",
       VITE_LABEL: "hostile-host",
       VITE_PUBLIC_ORIGIN: undefined,
-      VITE_SERVICE_TOKEN: "kept-on-server",
     }
   );
   try {
@@ -580,7 +673,7 @@ const verifyVite = async () => {
       "127.1:4173",
       "localhost:4173,example.test",
     ]) {
-      await assertResponse(
+      await assertBootstrapErrorResponse(
         await fetchWithRawHost("http://127.0.0.1:4173/env.json", host),
         500,
         "ENV_INVALID_VALUE"
@@ -597,11 +690,10 @@ const verifyVite = async () => {
       PORT: "4173",
       VITE_LABEL: "invalid-origin",
       VITE_PUBLIC_ORIGIN: "http://localhost:4173",
-      VITE_SERVICE_TOKEN: "kept-on-server",
     }
   );
   try {
-    await assertResponse(
+    await assertBootstrapErrorResponse(
       await fetchReady("http://127.0.0.1:4173/env.json", invalidOriginChild),
       500,
       "ENV_INVALID_VALUE"
