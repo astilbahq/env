@@ -20,6 +20,7 @@ import { compileContract } from "../core/index.ts";
 import { encodeCliCompilationV1 } from "../product/compilation.ts";
 import {
   decodeCliCompilationV1ForTest,
+  hasSameObservedFileIdentityForTest,
   prepareTypeScriptExecArguments,
   runCli,
 } from "./astilba-env.ts";
@@ -43,6 +44,27 @@ const execFile = async (
   });
 };
 const temporaryRoots: string[] = [];
+
+describe("observed inventory file identity", () => {
+  it("uses inode identity when Windows reports different devices", () => {
+    const pathIdentity = { dev: 0, ino: 42 };
+    const handleIdentity = { dev: 42, ino: 42 };
+
+    expect(
+      hasSameObservedFileIdentityForTest(pathIdentity, handleIdentity, "win32")
+    ).toBe(true);
+    expect(
+      hasSameObservedFileIdentityForTest(pathIdentity, handleIdentity, "linux")
+    ).toBe(false);
+    expect(
+      hasSameObservedFileIdentityForTest(
+        pathIdentity,
+        { dev: 42, ino: 43 },
+        "win32"
+      )
+    ).toBe(false);
+  });
+});
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

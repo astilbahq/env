@@ -967,8 +967,7 @@ const readObservedInventory = async (
     if (
       !metadata.isFile() ||
       pathMetadata.isSymbolicLink() ||
-      pathMetadata.dev !== metadata.dev ||
-      pathMetadata.ino !== metadata.ino ||
+      !hasSameObservedFileIdentity(pathMetadata, metadata) ||
       metadata.size > MAXIMUM_OBSERVED_INVENTORY_BYTES
     ) {
       throw new TypeError("Observed inventory file is invalid.");
@@ -1001,6 +1000,23 @@ const readObservedInventory = async (
     await handle?.close().catch(() => undefined);
   }
 };
+
+type ObservedFileIdentity = Readonly<{ dev: number; ino: number }>;
+
+const hasSameObservedFileIdentity = (
+  pathIdentity: ObservedFileIdentity,
+  handleIdentity: ObservedFileIdentity,
+  platform: NodeJS.Platform = process.platform
+): boolean => {
+  if (pathIdentity.ino !== handleIdentity.ino) {
+    return false;
+  }
+  // Node can report different device identifiers for lstat and FileHandle.stat on Windows.
+  return platform === "win32" || pathIdentity.dev === handleIdentity.dev;
+};
+
+export const hasSameObservedFileIdentityForTest: typeof hasSameObservedFileIdentity =
+  hasSameObservedFileIdentity;
 
 const renderInventoryCheckReport = (
   report: ReturnType<typeof checkContractInventory>
