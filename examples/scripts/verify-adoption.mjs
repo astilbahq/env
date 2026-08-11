@@ -8,11 +8,13 @@ import { request as httpRequest } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
+import { parse as parseYaml } from "yaml";
+
 const ROOT = resolve(import.meta.dirname, "..");
-const REGISTRY = "https://registry.npmjs.org/@astilba/env/-/env-0.2.3.tgz";
+const REGISTRY = "https://registry.npmjs.org/@astilba/env/-/env-0.3.0.tgz";
 const INTEGRITY =
-  "sha512-mjAXvvSBzHp2jZlEP8jytUuyIP3xPNpDtrdL7vh1NY02L20/jkxEWw01fiDVJCgWISNVU3RvzhswYwcHWxJS0A==";
-const VERSION = "0.2.3";
+  "sha512-WVo1x/oMi+D1mhoOJVx6RLVy9BGiwtBFljNVjOW778Q6QFNamyhjmSygcpxCdsIdQ7Qhvw/XTCY9GjiEL+C+NA==";
+const VERSION = "0.3.0";
 const NEXT_PRIVATE_BINDING = "NEXT_SERVICE_TOKEN";
 const NEXT_PRIVATE_NAME = "serviceToken";
 const NEXT_PRIVATE_VALUE = "next-server-only-value";
@@ -228,6 +230,20 @@ const isRecord = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const verifyRegistryIdentity = async () => {
+  const workspace = parseYaml(
+    await readFile(resolve(ROOT, "pnpm-workspace.yaml"), "utf-8")
+  );
+  if (
+    !isRecord(workspace) ||
+    workspace.minimumReleaseAge !== 1440 ||
+    !Array.isArray(workspace.minimumReleaseAgeExclude) ||
+    workspace.minimumReleaseAgeExclude.length !== 1 ||
+    workspace.minimumReleaseAgeExclude[0] !== "@astilba/env"
+  ) {
+    fail(
+      "Examples must retain the third-party release-age policy and the narrow first-party Env exception."
+    );
+  }
   const lock = await readFile(resolve(ROOT, "pnpm-lock.yaml"), "utf-8");
   if (!lock.includes(`@astilba/env@${VERSION}`) || !lock.includes(INTEGRITY)) {
     fail("Examples lockfile does not pin the exact public registry package.");

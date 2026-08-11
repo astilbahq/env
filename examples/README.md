@@ -1,6 +1,8 @@
 # Astilba Env public examples
 
-These are four self-contained applications that consume exact registry `@astilba/env@0.2.3`. They deliberately do not use the source checkout, workspace links, archives, or a shared application layer.
+These are four self-contained applications that consume exact registry `@astilba/env@0.3.0`. They deliberately do not use the source checkout, workspace links, archives, or a shared application layer.
+
+The workspace keeps the 24-hour release-age safeguard for third-party packages. It excludes only first-party `@astilba/env`; the trusted release workflow and this adoption verifier bind the package to exact registry and GitHub Release bytes.
 
 ```sh
 pnpm install --frozen-lockfile
