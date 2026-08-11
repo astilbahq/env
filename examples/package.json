@@ -10,5 +10,8 @@
     "verify:vite": "node scripts/verify-adoption.mjs vite",
     "verify:windows": "node scripts/verify-adoption.mjs windows"
   },
+  "devDependencies": {
+    "yaml": "2.9.0"
+  },
   "packageManager": "pnpm@11.10.0"
 }

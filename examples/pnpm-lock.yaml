@@ -12,13 +12,17 @@ overrides:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   cloudflare-worker:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.3
-        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.3.0
+        version: 0.3.0(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0))
     devDependencies:
       wrangler:
         specifier: 4.115.0
@@ -27,8 +31,8 @@ importers:
   next-static-shell:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.3
-        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.3.0
+        version: 0.3.0(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0))
       next:
         specifier: 16.2.12
         version: 16.2.12(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -58,26 +62,26 @@ importers:
   node-service:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.3
-        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.3.0
+        version: 0.3.0(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0))
 
   vite:
     dependencies:
       '@astilba/env':
-        specifier: 0.2.3
-        version: 0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))
+        specifier: 0.3.0
+        version: 0.3.0(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0))
     devDependencies:
       cross-env:
         specifier: 10.1.0
         version: 10.1.0
       vite:
         specifier: 8.1.5
-        version: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)
+        version: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0)
 
 packages:
 
-  '@astilba/env@0.2.3':
-    resolution: {integrity: sha512-mjAXvvSBzHp2jZlEP8jytUuyIP3xPNpDtrdL7vh1NY02L20/jkxEWw01fiDVJCgWISNVU3RvzhswYwcHWxJS0A==}
+  '@astilba/env@0.3.0':
+    resolution: {integrity: sha512-WVo1x/oMi+D1mhoOJVx6RLVy9BGiwtBFljNVjOW778Q6QFNamyhjmSygcpxCdsIdQ7Qhvw/XTCY9GjiEL+C+NA==}
     engines: {node: '>=22.14.0 <23.0.0 || >=24.0.0 <25.0.0 || >=26.0.0 <27.0.0'}
     hasBin: true
     peerDependencies:
@@ -1180,6 +1184,11 @@ packages:
       utf-8-validate:
         optional: true
 
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   youch-core@0.3.3:
     resolution: {integrity: sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA==}
 
@@ -1188,9 +1197,9 @@ packages:
 
 snapshots:
 
-  '@astilba/env@0.2.3(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1))':
+  '@astilba/env@0.3.0(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0))':
     optionalDependencies:
-      vite: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)
+      vite: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0)
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
 
@@ -1963,7 +1972,7 @@ snapshots:
     dependencies:
       pathe: 2.0.3
 
-  vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1):
+  vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -1974,6 +1983,7 @@ snapshots:
       '@types/node': 26.1.2
       esbuild: 0.28.1
       fsevents: 2.3.3
+      yaml: 2.9.0
 
   which@2.0.2:
     dependencies:
@@ -2004,6 +2014,8 @@ snapshots:
       - utf-8-validate
 
   ws@8.21.0: {}
+
+  yaml@2.9.0: {}
 
   youch-core@0.3.3:
     dependencies:

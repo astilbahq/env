@@ -12,6 +12,9 @@ overrides:
 
 nodeLinker: hoisted
 minimumReleaseAge: 1440
+# First-party releases are already bound to verified registry and GitHub bytes.
+minimumReleaseAgeExclude:
+  - "@astilba/env"
 
 allowBuilds:
   esbuild: true
