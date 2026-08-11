@@ -11,6 +11,7 @@ import {
   readArtifact,
   removeConsumer,
   run,
+  runResult,
   runPackageManager,
   writeConsumerManifest,
 } from "./matrix-artifact.mjs";
@@ -23,6 +24,128 @@ const requested = selected.length === 0 ? [...managers] : selected;
 /** @param {string} value @returns {value is "bun" | "npm" | "pnpm"} */
 const isManager = (value) =>
   value === "bun" || value === "npm" || value === "pnpm";
+
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+const isRecord = (value) =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** @param {string} output @returns {Record<string, unknown>} */
+const parseJson = (output) => {
+  /** @type {unknown} */
+  const parsed = JSON.parse(output);
+  if (!isRecord(parsed)) {
+    throw new TypeError("Packed CLI output is not a JSON object.");
+  }
+  return parsed;
+};
+
+/** @param {string} consumer */
+const verifyInventoryCli = async (consumer) => {
+  await writeFile(
+    resolve(consumer, "astilba.env.ts"),
+    `import { defineEnvironment, env } from "@astilba/env";
+
+export default defineEnvironment({
+  id: "com.example.inventory-consumer",
+  entries: {
+    apiKey: env.private.deployment.secret(),
+    sentryDsn: env.private.deployment.secret({ required: false }),
+  },
+  consumers: { worker: env.server() },
+  targets: {
+    workerDeployment: env.process("worker", {
+      apiKey: "API_KEY",
+      sentryDsn: "SENTRY_DSN",
+    }),
+  },
+});
+`
+  );
+  const observed = resolve(consumer, "observed.json");
+  await writeFile(
+    observed,
+    '{"entries":[{"name":"API_KEY"},{"name":"EXTRA_KEY"}],"format":"astilba.env.observed-name-inventory/v1"}\n'
+  );
+  const cli = resolve(
+    consumer,
+    "node_modules",
+    "@astilba",
+    "env",
+    "dist",
+    "cli",
+    "astilba-env.js"
+  );
+  const targetArguments = ["--target", "workerDeployment", "--json"];
+  const exported = parseJson(
+    run(
+      process.execPath,
+      [cli, "inventory", "export", ...targetArguments],
+      consumer
+    )
+  );
+  const exportedInventory = exported.inventory;
+  if (
+    exported.ok !== true ||
+    exported.operation !== "export" ||
+    !isRecord(exportedInventory) ||
+    exportedInventory.format !== "astilba.env.contract-inventory/v1" ||
+    !Array.isArray(exportedInventory.entries) ||
+    exportedInventory.entries.length !== 2
+  ) {
+    throw new Error("Packed CLI inventory export is incomplete.");
+  }
+  const checkedOpen = parseJson(
+    run(
+      process.execPath,
+      [cli, "inventory", "check", ...targetArguments, "--observed", observed],
+      consumer
+    )
+  );
+  const openReport = checkedOpen.report;
+  if (
+    checkedOpen.ok !== true ||
+    checkedOpen.operation !== "check" ||
+    !isRecord(openReport) ||
+    openReport.ownership !== "open" ||
+    openReport.pass !== true
+  ) {
+    throw new Error("Packed CLI open inventory check is incomplete.");
+  }
+  const checkedClosed = runResult(
+    process.execPath,
+    [
+      cli,
+      "inventory",
+      "check",
+      ...targetArguments,
+      "--observed",
+      observed,
+      "--ownership",
+      "closed",
+    ],
+    consumer
+  );
+  if (
+    checkedClosed.error !== undefined ||
+    checkedClosed.signal !== null ||
+    checkedClosed.status !== 1 ||
+    checkedClosed.stderr !== ""
+  ) {
+    throw new Error(
+      "Packed CLI closed inventory check has unstable exit semantics."
+    );
+  }
+  const closedOutput = parseJson(checkedClosed.stdout);
+  const closedReport = closedOutput.report;
+  if (
+    closedOutput.ok !== false ||
+    !isRecord(closedReport) ||
+    closedReport.ownership !== "closed" ||
+    closedReport.pass !== false
+  ) {
+    throw new Error("Packed CLI closed inventory report is incomplete.");
+  }
+};
 
 if (requested.length === 0 || !requested.every(isManager)) {
   throw new Error("Usage: node scripts/verify-consumer.mjs [npm|pnpm|bun ...]");
@@ -68,6 +191,7 @@ for (const manager of requested) {
       ],
       consumer
     );
+    await verifyInventoryCli(consumer);
   } finally {
     await removeConsumer(consumer);
   }

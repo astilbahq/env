@@ -20,6 +20,7 @@ import { compileContract } from "../core/index.ts";
 import { encodeCliCompilationV1 } from "../product/compilation.ts";
 import {
   decodeCliCompilationV1ForTest,
+  hasSameObservedFileIdentityForTest,
   prepareTypeScriptExecArguments,
   runCli,
 } from "./astilba-env.ts";
@@ -43,6 +44,27 @@ const execFile = async (
   });
 };
 const temporaryRoots: string[] = [];
+
+describe("observed inventory file identity", () => {
+  it("uses inode identity when Windows reports different devices", () => {
+    const pathIdentity = { dev: 0, ino: 42 };
+    const handleIdentity = { dev: 42, ino: 42 };
+
+    expect(
+      hasSameObservedFileIdentityForTest(pathIdentity, handleIdentity, "win32")
+    ).toBe(true);
+    expect(
+      hasSameObservedFileIdentityForTest(pathIdentity, handleIdentity, "linux")
+    ).toBe(false);
+    expect(
+      hasSameObservedFileIdentityForTest(
+        pathIdentity,
+        { dev: 42, ino: 43 },
+        "win32"
+      )
+    ).toBe(false);
+  });
+});
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -118,6 +140,31 @@ export default defineEnvironment({
   targets: {
     web: env.process("web", {
       releaseSha: ${JSON.stringify(source)},
+    }),
+  },
+});
+`;
+};
+
+const inventoryConfiguration = (): string => {
+  const authoring = pathToFileURL(
+    resolve(process.cwd(), "src/authoring/index.ts")
+  ).href;
+  return `import { defineEnvironment, env } from ${JSON.stringify(authoring)};
+
+export default defineEnvironment({
+  id: "com.astilba.cli-inventory",
+  entries: {
+    apiKey: env.private.deployment.secret(),
+    sentryDsn: env.private.deployment.secret({ required: false }),
+  },
+  consumers: {
+    worker: env.server(),
+  },
+  targets: {
+    workerDeployment: env.process("worker", {
+      apiKey: "API_KEY",
+      sentryDsn: "SENTRY_DSN",
     }),
   },
 });
@@ -277,6 +324,305 @@ describe("Astilba Env CLI", () => {
       target: "server",
     });
   });
+
+  it("exports and checks a value-free inventory with stable exit semantics", async () => {
+    const root = await temporaryRoot();
+    await writeFile(
+      resolve(root, "astilba.env.ts"),
+      inventoryConfiguration(),
+      "utf-8"
+    );
+
+    const exported = capture();
+    await expect(
+      runCli(["inventory", "export", "--target", "workerDeployment"], {
+        cwd: root,
+        ...exported.io,
+      })
+    ).resolves.toBe(0);
+    expect(JSON.parse(exported.read().stdout)).toStrictEqual({
+      entries: [
+        {
+          entry: "apiKey",
+          lifecycle: "deployment",
+          name: "API_KEY",
+          required: true,
+          visibility: "private",
+        },
+        {
+          entry: "sentryDsn",
+          lifecycle: "deployment",
+          name: "SENTRY_DSN",
+          required: false,
+          visibility: "private",
+        },
+      ],
+      format: "astilba.env.contract-inventory/v1",
+      target: "workerDeployment",
+    });
+
+    const exportedJson = capture();
+    await expect(
+      runCli(
+        ["inventory", "export", "--target", "workerDeployment", "--json"],
+        { cwd: root, ...exportedJson.io }
+      )
+    ).resolves.toBe(0);
+    expect(JSON.parse(exportedJson.read().stdout)).toMatchObject({
+      command: "inventory",
+      format: "astilba.env.cli.inventory/v1",
+      inventory: {
+        format: "astilba.env.contract-inventory/v1",
+        target: "workerDeployment",
+      },
+      ok: true,
+      operation: "export",
+    });
+
+    const unknownTarget = capture();
+    await expect(
+      runCli(["inventory", "export", "--target", "unknownTarget", "--json"], {
+        cwd: root,
+        ...unknownTarget.io,
+      })
+    ).resolves.toBe(2);
+    expect(JSON.parse(unknownTarget.read().stderr)).toMatchObject({
+      error: { code: "ENV_INVENTORY_TARGET_UNKNOWN" },
+    });
+
+    const observedPath = resolve(root, "observed.json");
+    const observedDocument =
+      '{"entries":[{"name":"API_KEY"}],"format":"astilba.env.observed-name-inventory/v1"}\n';
+    await writeFile(observedPath, observedDocument, "utf-8");
+    const checked = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--json",
+        ],
+        { cwd: root, ...checked.io }
+      )
+    ).resolves.toBe(0);
+    expect(JSON.parse(checked.read().stdout)).toMatchObject({
+      command: "inventory",
+      ok: true,
+      operation: "check",
+      report: {
+        issues: [{ code: "OPTIONAL_MISSING", entry: "sentryDsn" }],
+        ownership: "open",
+        pass: true,
+      },
+    });
+
+    await writeFile(
+      observedPath,
+      withBom(new TextEncoder().encode(observedDocument))
+    );
+    const bomPrefixed = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--json",
+        ],
+        { cwd: root, ...bomPrefixed.io }
+      )
+    ).resolves.toBe(0);
+    expect(JSON.parse(bomPrefixed.read().stdout)).toMatchObject({
+      ok: true,
+      report: {
+        issues: [{ code: "OPTIONAL_MISSING", entry: "sentryDsn" }],
+        pass: true,
+      },
+    });
+
+    await writeFile(
+      observedPath,
+      '{"entries":[{"name":"API_KEY"},{"name":"EXTRA_KEY"}],"format":"astilba.env.observed-name-inventory/v1"}\n',
+      "utf-8"
+    );
+    const human = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+        ],
+        { cwd: root, ...human.io }
+      )
+    ).resolves.toBe(0);
+    expect(human.read()).toStrictEqual({
+      stderr: "",
+      stdout: `Astilba Env inventory is conformant with notices (ownership: open).
+UNEXPECTED_ENTRY: EXTRA_KEY
+OPTIONAL_MISSING: SENTRY_DSN (sentryDsn)
+`,
+    });
+
+    const closed = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--ownership",
+          "closed",
+          "--json",
+        ],
+        { cwd: root, ...closed.io }
+      )
+    ).resolves.toBe(1);
+    expect(JSON.parse(closed.read().stdout)).toMatchObject({
+      ok: false,
+      report: {
+        ownership: "closed",
+        pass: false,
+      },
+    });
+
+    const usage = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--ownership",
+          "warning",
+          "--json",
+        ],
+        { cwd: root, ...usage.io }
+      )
+    ).resolves.toBe(2);
+    expect(JSON.parse(usage.read().stderr)).toMatchObject({
+      error: { code: "ENV_USAGE" },
+    });
+
+    const sensitiveMetadata = "must-not-be-echoed";
+    await writeFile(
+      observedPath,
+      `{"entries":[{"name":"API_KEY","value":${JSON.stringify(sensitiveMetadata)}}],"format":"astilba.env.observed-name-inventory/v1"}\n`,
+      "utf-8"
+    );
+    const invalid = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--json",
+        ],
+        { cwd: root, ...invalid.io }
+      )
+    ).resolves.toBe(1);
+    expect(invalid.read().stderr).not.toContain(sensitiveMetadata);
+    expect(JSON.parse(invalid.read().stderr)).toMatchObject({
+      error: { code: "ENV_OBSERVED_INVALID" },
+    });
+
+    const missing = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          resolve(root, "missing-observed.json"),
+          "--json",
+        ],
+        { cwd: root, ...missing.io }
+      )
+    ).resolves.toBe(1);
+    expect(JSON.parse(missing.read().stderr)).toMatchObject({
+      error: { code: "ENV_OBSERVED_INVALID" },
+    });
+
+    await writeFile(observedPath, "{\n", "utf-8");
+    const malformed = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--json",
+        ],
+        { cwd: root, ...malformed.io }
+      )
+    ).resolves.toBe(1);
+    expect(JSON.parse(malformed.read().stderr)).toMatchObject({
+      error: { code: "ENV_OBSERVED_INVALID" },
+    });
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a symbolic observed inventory",
+    async () => {
+      const root = await temporaryRoot();
+      await writeFile(
+        resolve(root, "astilba.env.ts"),
+        inventoryConfiguration(),
+        "utf-8"
+      );
+      const observedTarget = resolve(root, "observed-target.json");
+      const observedLink = resolve(root, "observed-link.json");
+      await writeFile(
+        observedTarget,
+        '{"entries":[],"format":"astilba.env.observed-name-inventory/v1"}\n',
+        "utf-8"
+      );
+      await symlink(observedTarget, observedLink);
+      const linked = capture();
+      await expect(
+        runCli(
+          [
+            "inventory",
+            "check",
+            "--target",
+            "workerDeployment",
+            "--observed",
+            observedLink,
+            "--json",
+          ],
+          { cwd: root, ...linked.io }
+        )
+      ).resolves.toBe(1);
+      expect(JSON.parse(linked.read().stderr)).toMatchObject({
+        error: { code: "ENV_OBSERVED_INVALID" },
+      });
+    }
+  );
 
   it("materializes the native process environment for public build generation and checks", async () => {
     const root = await temporaryRoot();
