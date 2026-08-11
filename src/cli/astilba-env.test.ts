@@ -379,12 +379,21 @@ describe("Astilba Env CLI", () => {
       operation: "export",
     });
 
+    const unknownTarget = capture();
+    await expect(
+      runCli(["inventory", "export", "--target", "unknownTarget", "--json"], {
+        cwd: root,
+        ...unknownTarget.io,
+      })
+    ).resolves.toBe(2);
+    expect(JSON.parse(unknownTarget.read().stderr)).toMatchObject({
+      error: { code: "ENV_INVENTORY_TARGET_UNKNOWN" },
+    });
+
     const observedPath = resolve(root, "observed.json");
-    await writeFile(
-      observedPath,
-      '{"entries":[{"name":"API_KEY"}],"format":"astilba.env.observed-name-inventory/v1"}\n',
-      "utf-8"
-    );
+    const observedDocument =
+      '{"entries":[{"name":"API_KEY"}],"format":"astilba.env.observed-name-inventory/v1"}\n';
+    await writeFile(observedPath, observedDocument, "utf-8");
     const checked = capture();
     await expect(
       runCli(
@@ -407,6 +416,33 @@ describe("Astilba Env CLI", () => {
       report: {
         issues: [{ code: "OPTIONAL_MISSING", entry: "sentryDsn" }],
         ownership: "open",
+        pass: true,
+      },
+    });
+
+    await writeFile(
+      observedPath,
+      withBom(new TextEncoder().encode(observedDocument))
+    );
+    const bomPrefixed = capture();
+    await expect(
+      runCli(
+        [
+          "inventory",
+          "check",
+          "--target",
+          "workerDeployment",
+          "--observed",
+          observedPath,
+          "--json",
+        ],
+        { cwd: root, ...bomPrefixed.io }
+      )
+    ).resolves.toBe(0);
+    expect(JSON.parse(bomPrefixed.read().stdout)).toMatchObject({
+      ok: true,
+      report: {
+        issues: [{ code: "OPTIONAL_MISSING", entry: "sentryDsn" }],
         pass: true,
       },
     });
@@ -548,34 +584,45 @@ OPTIONAL_MISSING: SENTRY_DSN (sentryDsn)
     expect(JSON.parse(malformed.read().stderr)).toMatchObject({
       error: { code: "ENV_OBSERVED_INVALID" },
     });
-
-    const observedTarget = resolve(root, "observed-target.json");
-    const observedLink = resolve(root, "observed-link.json");
-    await writeFile(
-      observedTarget,
-      '{"entries":[],"format":"astilba.env.observed-name-inventory/v1"}\n',
-      "utf-8"
-    );
-    await symlink(observedTarget, observedLink);
-    const linked = capture();
-    await expect(
-      runCli(
-        [
-          "inventory",
-          "check",
-          "--target",
-          "workerDeployment",
-          "--observed",
-          observedLink,
-          "--json",
-        ],
-        { cwd: root, ...linked.io }
-      )
-    ).resolves.toBe(1);
-    expect(JSON.parse(linked.read().stderr)).toMatchObject({
-      error: { code: "ENV_OBSERVED_INVALID" },
-    });
   });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a symbolic observed inventory",
+    async () => {
+      const root = await temporaryRoot();
+      await writeFile(
+        resolve(root, "astilba.env.ts"),
+        inventoryConfiguration(),
+        "utf-8"
+      );
+      const observedTarget = resolve(root, "observed-target.json");
+      const observedLink = resolve(root, "observed-link.json");
+      await writeFile(
+        observedTarget,
+        '{"entries":[],"format":"astilba.env.observed-name-inventory/v1"}\n',
+        "utf-8"
+      );
+      await symlink(observedTarget, observedLink);
+      const linked = capture();
+      await expect(
+        runCli(
+          [
+            "inventory",
+            "check",
+            "--target",
+            "workerDeployment",
+            "--observed",
+            observedLink,
+            "--json",
+          ],
+          { cwd: root, ...linked.io }
+        )
+      ).resolves.toBe(1);
+      expect(JSON.parse(linked.read().stderr)).toMatchObject({
+        error: { code: "ENV_OBSERVED_INVALID" },
+      });
+    }
+  );
 
   it("materializes the native process environment for public build generation and checks", async () => {
     const root = await temporaryRoot();

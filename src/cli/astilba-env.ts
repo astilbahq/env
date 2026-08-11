@@ -991,7 +991,7 @@ const readObservedInventory = async (
     }
     const source = new TextDecoder("utf-8", {
       fatal: true,
-      ignoreBOM: true,
+      ignoreBOM: false,
     }).decode(buffer.subarray(0, byteLength));
     return parseBoundedJsonValue(source, OBSERVED_INVENTORY_LIMITS);
   } catch {
@@ -1236,7 +1236,13 @@ const mappedFailure = (error: unknown): CliFailure => {
     return new CliFailure(error.code, 1);
   }
   if (error instanceof InventoryFailure) {
-    return new CliFailure(error.code, 1);
+    return new CliFailure(
+      error.code,
+      error.code === "ENV_INVENTORY_TARGET_UNKNOWN" ||
+        error.code === "ENV_INVENTORY_TARGET_UNSUPPORTED"
+        ? 2
+        : 1
+    );
   }
   return new CliFailure("ENV_COMMAND_FAILED", 1);
 };
