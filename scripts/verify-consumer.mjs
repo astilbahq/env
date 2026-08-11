@@ -1,7 +1,13 @@
 // @ts-check
 /// <reference types="node" />
 
-import { writeFile } from "node:fs/promises";
+import {
+  constants as fileConstants,
+  lstat,
+  open,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -37,6 +43,36 @@ const parseJson = (output) => {
     throw new TypeError("Packed CLI output is not a JSON object.");
   }
   return parsed;
+};
+
+/** @param {string} path */
+const inspectObservedFile = async (path) => {
+  const handle = await open(path, fileConstants.O_RDONLY);
+  try {
+    const [metadata, pathMetadata, source] = await Promise.all([
+      handle.stat(),
+      lstat(path),
+      readFile(path, "utf-8"),
+    ]);
+    let parses = false;
+    try {
+      JSON.parse(source);
+      parses = true;
+    } catch {
+      parses = false;
+    }
+    return {
+      devEqual: pathMetadata.dev === metadata.dev,
+      handleIsFile: metadata.isFile(),
+      inoEqual: pathMetadata.ino === metadata.ino,
+      noFollowAvailable: typeof fileConstants.O_NOFOLLOW === "number",
+      parses,
+      pathIsSymbolicLink: pathMetadata.isSymbolicLink(),
+      sizeEqual: pathMetadata.size === metadata.size,
+    };
+  } finally {
+    await handle.close();
+  }
 };
 
 /** @param {string} consumer */
@@ -94,13 +130,24 @@ export default defineEnvironment({
   ) {
     throw new Error("Packed CLI inventory export is incomplete.");
   }
-  const checkedOpen = parseJson(
-    run(
+  let checkedOpenOutput;
+  try {
+    checkedOpenOutput = run(
       process.execPath,
       [cli, "inventory", "check", ...targetArguments, "--observed", observed],
       consumer
-    )
-  );
+    );
+  } catch (error) {
+    if (process.platform !== "win32") {
+      throw error;
+    }
+    const diagnostic = await inspectObservedFile(observed);
+    throw new Error(
+      `Packed CLI Windows observed-file diagnostic: ${JSON.stringify(diagnostic)}`,
+      { cause: error }
+    );
+  }
+  const checkedOpen = parseJson(checkedOpenOutput);
   const openReport = checkedOpen.report;
   if (
     checkedOpen.ok !== true ||
