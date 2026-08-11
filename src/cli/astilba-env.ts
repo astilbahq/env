@@ -955,6 +955,7 @@ const readObservedInventory = async (
   try {
     const path = resolve(cwd, requestedPath);
     const noFollowFlag =
+      process.platform !== "win32" &&
       typeof fileConstants.O_NOFOLLOW === "number"
         ? fileConstants.O_NOFOLLOW
         : 0;
