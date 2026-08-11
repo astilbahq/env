@@ -273,6 +273,11 @@ export const parseObservedInventory = (input: unknown): ObservedInventory => {
   ) {
     return fail("ENV_OBSERVED_INVALID");
   }
+  for (let index = 0; index < record.entries.length; index += 1) {
+    if (!Object.hasOwn(record.entries, index)) {
+      return fail("ENV_OBSERVED_INVALID");
+    }
+  }
 
   const names = new Set<string>();
   const foldedNames = new Set<string>();

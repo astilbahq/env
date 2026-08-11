@@ -184,6 +184,16 @@ describe("contract inventory", () => {
         })
       )
     ).toBe("ENV_OBSERVED_UNSUPPORTED");
+    const sparse: unknown[] = [];
+    sparse.length = 1;
+    expect(
+      failureCode(() =>
+        parseObservedInventory({
+          entries: sparse,
+          format: "astilba.env.observed-name-inventory/v1",
+        })
+      )
+    ).toBe("ENV_OBSERVED_INVALID");
     let formatReads = 0;
     const accessor: Record<string, unknown> = {};
     Object.setPrototypeOf(accessor, null);
