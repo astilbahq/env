@@ -87,7 +87,7 @@
     "publint": "0.3.21",
     "typescript": "6.0.3",
     "typescript-7": "npm:typescript@7.0.2",
-    "ultracite": "7.9.4",
+    "ultracite": "7.10.2",
     "vite": "8.1.5",
     "vite-plus": "0.2.5",
     "vitest": "4.1.10",
