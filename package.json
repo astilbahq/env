@@ -75,7 +75,7 @@
     "verify": "pnpm verify:tools && pnpm verify:filesystem-containment && pnpm typecheck && pnpm typecheck:ts7 && pnpm test:run && pnpm build && node scripts/verify-public-tsdoc.mjs && node scripts/verify-package.mjs"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "0.18.4",
+    "@arethetypeswrong/cli": "0.18.5",
     "@types/node": "26.1.2",
     "@vitest/coverage-istanbul": "4.1.10",
     "esbuild": "0.28.1",
