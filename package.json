@@ -90,7 +90,7 @@
     "ultracite": "7.9.4",
     "vite": "8.1.5",
     "vite-plus": "0.2.5",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "workerd": "1.20260724.1"
   },
   "peerDependencies": {
