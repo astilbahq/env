@@ -77,7 +77,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.4",
     "@types/node": "26.1.2",
-    "@vitest/coverage-istanbul": "4.1.10",
+    "@vitest/coverage-istanbul": "4.1.11",
     "esbuild": "0.28.1",
     "jsonc-parser": "3.3.1",
     "knip": "6.29.0",
@@ -90,7 +90,7 @@
     "ultracite": "7.9.4",
     "vite": "8.1.5",
     "vite-plus": "0.2.5",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "workerd": "1.20260724.1"
   },
   "peerDependencies": {

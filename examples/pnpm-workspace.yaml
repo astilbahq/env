@@ -1,21 +1,14 @@
 packages:
-  - "node-service"
-  - "cloudflare-worker"
-  - "next-static-shell"
-  - "vite"
-
+  - node-service
+  - cloudflare-worker
+  - next-static-shell
+  - vite
 overrides:
-  "next>postcss": 8.5.26
-  "next>sharp": 0.35.3
-  undici: 7.29.0
-  "vite>postcss": 8.5.26
-
+  next>sharp: 0.35.4
 nodeLinker: hoisted
 minimumReleaseAge: 1440
-# First-party releases are already bound to verified registry and GitHub bytes.
 minimumReleaseAgeExclude:
   - "@astilba/env"
-
 allowBuilds:
   esbuild: true
   sharp: false
