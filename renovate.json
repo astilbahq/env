@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>astilbahq/create:renovate-default"],
+  "extends": ["github>astilbahq/docs:renovate-default"],
   "packageRules": [
     {
       "matchPackageNames": [
